@@ -1,0 +1,14 @@
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  _id: { type: String, required: true }, // UUID
+  name: { type: String, required: true }, // Random generated name
+  hashedEmail: { type: String, default: null }, // For students
+  email: { type: String, default: null }, // For public users
+  isStudent: { type: Boolean, required: true },
+  canPost: { type: Boolean, default: false },
+  password: { type: String }, // For public users
+  createdAt: { type: Date, default: Date.now }
+});
+
+module.exports = mongoose.model('User', userSchema);
