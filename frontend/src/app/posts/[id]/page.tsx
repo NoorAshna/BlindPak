@@ -18,6 +18,7 @@ export default function PostDetailsPage() {
     const fetchPost = async () => {
         try {
             const res = await api.get(`/posts/${id}`);
+            console.log(res.data);
             setPost(res.data);
         } catch (error) {
             console.error(error);
@@ -59,6 +60,8 @@ export default function PostDetailsPage() {
         <div className="min-h-screen bg-gray-100 p-4 md:p-8">
             <div className="mx-auto max-w-2xl">
                 <div className="mb-6 rounded-lg bg-white p-6 shadow">
+                    <h3 className="mb-2 text-xl font-bold text-gray-900">{post.userId?.name || 'Unknown User'}</h3>
+                    <span className="text-sm text-gray-500">{post.userId?.university || 'Unknown University'}</span>
                     <p className="mb-4 text-lg text-gray-800">{post.content}</p>
                     {post.imageUrl && (
                         <img src={post.imageUrl} alt="Post" className="mb-4 h-auto w-full rounded" />
@@ -74,6 +77,7 @@ export default function PostDetailsPage() {
                     <div className="mb-6 space-y-4">
                         {comments.map((comment: any) => (
                             <div key={comment._id} className="border-b pb-2 last:border-0">
+                                <p className="mb-1 text-sm font-bold text-gray-900">{comment.userId?.name || 'Unknown User'}</p>
                                 <p className="text-gray-800">{comment.text}</p>
                                 <span className="text-xs text-gray-500">
                                     {formatDistanceToNow(new Date(comment.createdAt))} ago

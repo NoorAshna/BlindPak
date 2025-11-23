@@ -51,13 +51,30 @@ const getPosts = async (req, res) => {
         }
       },
       {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: '$user'
+      },
+      {
         $addFields: {
           commentCount: { $size: '$comments' }
         }
       },
       {
         $project: {
-          comments: 0
+          comments: 0,
+          'user.password': 0,
+          'user.email': 0,
+          'user.hashedEmail': 0,
+          'user.createdAt': 0,
+          'user.canPost': 0,
+          'user.isStudent': 0
         }
       },
       { $sort: { createdAt: -1 } }
@@ -111,6 +128,9 @@ const commentPost = async (req, res) => {
       userId: req.user._id,
       text
     });
+    
+    // Populate user details for the response
+    await comment.populate('userId', 'name');
 
     res.status(201).json(comment);
   } catch (error) {
@@ -123,7 +143,9 @@ const commentPost = async (req, res) => {
 // @access  Public
 const getComments = async (req, res) => {
   try {
-    const comments = await Comment.find({ postId: req.params.id }).sort({ createdAt: 1 });
+    const comments = await Comment.find({ postId: req.params.id })
+      .sort({ createdAt: 1 })
+      .populate('userId', 'name');
     res.json(comments);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -135,8 +157,9 @@ const getComments = async (req, res) => {
 // @access  Public
 const getPostById = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id).populate('userId', 'name university');
     if (post) {
+      console.log("console from backend",post);
       res.json(post);
     } else {
       res.status(404).json({ message: 'Post not found' });

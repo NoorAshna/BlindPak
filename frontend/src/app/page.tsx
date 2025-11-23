@@ -14,6 +14,7 @@ export default function Home() {
     const fetchPosts = async () => {
         try {
             const res = await api.get('/posts');
+            // console.log(res.data);
             setPosts(res.data);
         } catch (error) {
             console.error(error);

@@ -9,12 +9,20 @@ interface Post {
     likes: string[];
     createdAt: string;
     commentCount: number;
+    user?: {
+        name: string;
+        university: string;
+    };
 }
 
 export default function PostCard({ post, onLike }: { post: Post; onLike: (id: string) => void }) {
     return (
         <div className="mb-4 rounded-lg bg-white p-4 shadow">
-            <p className="mb-2 text-gray-800">{post.content}</p>
+            <Link href={`/posts/${post._id}`}>
+                <h3 className="mb-2 text-lg font-bold text-gray-900">{post.user?.name || 'Unknown User'}<span className="text-sm text-gray-500 ml-2">{post.user?.university || 'Unknown University'}</span></h3>
+
+                <p className="mb-2 text-gray-800">{post.content}</p>
+            </Link>
             {post.imageUrl && (
                 <img src={post.imageUrl} alt="Post" className="mb-2 h-auto w-full rounded" />
             )}
