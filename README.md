@@ -1,0 +1,1 @@
+BlinkPak is a Blink like web+mobile app that is build for the university students. University students can post and share their thoughts in any matter. the identity of the students will protected and their profile will be anonymous.the project is currently under deveopment.
