@@ -70,7 +70,6 @@ const getPosts = async (req, res) => {
         $project: {
           comments: 0,
           'user.password': 0,
-          'user.email': 0,
           'user.hashedEmail': 0,
           'user.createdAt': 0,
           'user.canPost': 0,

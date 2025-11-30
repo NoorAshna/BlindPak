@@ -123,6 +123,7 @@ const verifyRegistration = async (req, res) => {
       _id: user._id,
       name: user.name,
       isStudent: user.isStudent,
+      isAdmin: user.isAdmin,
       university: user.university,
       token: generateToken(user._id)
     });
@@ -148,6 +149,7 @@ const loginUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         isStudent: user.isStudent,
+        isAdmin: user.isAdmin,
         token: generateToken(user._id)
       });
     } else {

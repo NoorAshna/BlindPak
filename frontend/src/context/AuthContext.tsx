@@ -8,6 +8,7 @@ interface User {
     _id: string;
     name: string;
     isStudent: boolean;
+    isAdmin: boolean;
     token: string;
 }
 

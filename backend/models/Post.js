@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
 const postSchema = new mongoose.Schema({
-  _id: { type: String, required: true }, // UUID
+  _id: { type: String, required: true }, 
   userId: { type: String, required: true, ref: 'User' },
   content: { type: String, required: true },
   imageUrl: { type: String, default: null },
-  imageId: { type: String, default: null }, // Cloudinary ID
-  likes: [{ type: String }], // Array of User UUIDs
+  imageId: { type: String, default: null }, 
+  likes: [{ type: String }],
   createdAt: { type: Date, default: Date.now }
 });
 

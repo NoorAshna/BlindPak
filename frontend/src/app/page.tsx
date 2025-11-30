@@ -39,23 +39,6 @@ export default function Home() {
     return (
         <main className="min-h-screen bg-gray-100 p-4 md:p-8">
             <div className="mx-auto max-w-2xl">
-                <header className="mb-8 flex items-center justify-between">
-                    <h1 className="text-3xl font-bold text-blue-600">College Blind</h1>
-                    {user ? (
-                        <div className="flex items-center space-x-4">
-                            <span className="text-sm text-gray-600">
-                                {user.isStudent ? 'Student' : 'Public'}
-                            </span>
-                            <span className="text-sm text-gray-600">
-                                {user.name}
-                            </span>
-                            <button onClick={logout} className="text-sm text-red-500 hover:underline">Logout</button>
-                        </div>
-                    ) : (
-                        <Link href="/login" className="text-blue-600 hover:underline">Login</Link>
-                    )}
-                </header>
-
                 {user && <CreatePost onPostCreated={fetchPosts} />}
 
                 <div className="space-y-4">
