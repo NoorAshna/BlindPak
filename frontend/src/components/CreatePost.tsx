@@ -61,7 +61,7 @@ export default function CreatePost({ onPostCreated }: { onPostCreated: () => voi
                         disabled={loading}
                         className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                        {loading ? 'Posting...' : 'Post'}
+                        {loading ? 'Posting... .' : 'Post'}
                     </button>
                 </div>
             </form>
