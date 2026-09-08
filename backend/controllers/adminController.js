@@ -1,6 +1,4 @@
-const Post = require('../models/Post');
-const Comment = require('../models/Comment');
-const User = require('../models/User');
+const { Post, Comment, User } = require('../models');
 const bcrypt = require('bcryptjs');
 const { deleteImage } = require('../utils/cloudinary');
 
@@ -9,7 +7,7 @@ const { deleteImage } = require('../utils/cloudinary');
 // @access  Private/Admin
 const deletePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findByPk(req.params.id);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -21,10 +19,10 @@ const deletePost = async (req, res) => {
     }
 
     // Delete associated comments
-    await Comment.deleteMany({ postId: req.params.id });
+    await Comment.destroy({ where: { postId: req.params.id } });
 
     // Delete the post
-    await Post.findByIdAndDelete(req.params.id);
+    await post.destroy();
 
     res.json({ message: 'Post and associated comments deleted successfully' });
   } catch (error) {
@@ -37,13 +35,13 @@ const deletePost = async (req, res) => {
 // @access  Private/Admin
 const deleteComment = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.id);
+    const comment = await Comment.findByPk(req.params.id);
 
     if (!comment) {
       return res.status(404).json({ message: 'Comment not found' });
     }
 
-    await Comment.findByIdAndDelete(req.params.id);
+    await comment.destroy();
 
     res.json({ message: 'Comment deleted successfully' });
   } catch (error) {
@@ -60,13 +58,12 @@ const getAllUsers = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const users = await User.find()
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await User.countDocuments();
+    const { rows: users, count: total } = await User.findAndCountAll({
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']],
+      offset: skip,
+      limit
+    });
 
     res.json({
       users,
@@ -90,7 +87,7 @@ const updateUserPassword = async (req, res) => {
   }
 
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -113,7 +110,7 @@ const updateUserPassword = async (req, res) => {
 // @access  Private/Admin
 const deleteUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -129,7 +126,7 @@ const deleteUser = async (req, res) => {
 
     if (cascadeDelete) {
       // Get all user's posts to delete associated images
-      const userPosts = await Post.find({ userId: req.params.id });
+      const userPosts = await Post.findAll({ where: { userId: req.params.id } });
       
       // Delete images from Cloudinary
       for (const post of userPosts) {
@@ -139,14 +136,14 @@ const deleteUser = async (req, res) => {
       }
 
       // Delete all user's posts
-      await Post.deleteMany({ userId: req.params.id });
+      await Post.destroy({ where: { userId: req.params.id } });
 
       // Delete all user's comments
-      await Comment.deleteMany({ userId: req.params.id });
+      await Comment.destroy({ where: { userId: req.params.id } });
     }
 
     // Delete the user
-    await User.findByIdAndDelete(req.params.id);
+    await user.destroy();
 
     res.json({ 
       message: 'User deleted successfully',
@@ -162,11 +159,11 @@ const deleteUser = async (req, res) => {
 // @access  Private/Admin
 const getAdminStats = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
-    const totalPosts = await Post.countDocuments();
-    const totalComments = await Comment.countDocuments();
-    const totalStudents = await User.countDocuments({ isStudent: true });
-    const totalPublicUsers = await User.countDocuments({ isStudent: false });
+    const totalUsers = await User.count();
+    const totalPosts = await Post.count();
+    const totalComments = await Comment.count();
+    const totalStudents = await User.count({ where: { isStudent: true } });
+    const totalPublicUsers = await User.count({ where: { isStudent: false } });
 
     res.json({
       totalUsers,

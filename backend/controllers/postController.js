@@ -1,5 +1,4 @@
-const Post = require('../models/Post');
-const Comment = require('../models/Comment');
+const { Post, Comment, User } = require('../models');
 const { uploadImage } = require('../utils/cloudinary');
 const { v4: uuidv4 } = require('uuid');
 
@@ -27,7 +26,8 @@ const createPost = async (req, res) => {
       userId: req.user._id,
       content,
       imageUrl,
-      imageId
+      imageId,
+      likes: []
     });
 
     res.status(201).json(post);
@@ -41,44 +41,31 @@ const createPost = async (req, res) => {
 // @access  Public
 const getPosts = async (req, res) => {
   try {
-    const posts = await Post.aggregate([
-      {
-        $lookup: {
-          from: 'comments',
-          localField: '_id',
-          foreignField: 'postId',
-          as: 'comments'
+    const posts = await Post.findAll({
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['_id', 'name', 'university', 'isStudent', 'isAdmin']
+        },
+        {
+          model: Comment,
+          as: 'comments',
+          attributes: ['_id']
         }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
-      {
-        $unwind: '$user'
-      },
-      {
-        $addFields: {
-          commentCount: { $size: '$comments' }
-        }
-      },
-      {
-        $project: {
-          comments: 0,
-          'user.password': 0,
-          'user.hashedEmail': 0,
-          'user.createdAt': 0,
-          'user.canPost': 0,
-          'user.isStudent': 0
-        }
-      },
-      { $sort: { createdAt: -1 } }
-    ]);
-    res.json(posts);
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    const formattedPosts = posts.map(post => {
+      const p = post.toJSON();
+      p.commentCount = p.comments ? p.comments.length : 0;
+      p.userId = p.user;
+      delete p.comments;
+      return p;
+    });
+
+    res.json(formattedPosts);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -89,18 +76,21 @@ const getPosts = async (req, res) => {
 // @access  Private
 const likePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findByPk(req.params.id);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    if (post.likes.includes(req.user._id)) {
-      post.likes = post.likes.filter((id) => id !== req.user._id);
+    let likes = Array.isArray(post.likes) ? [...post.likes] : [];
+
+    if (likes.includes(req.user._id)) {
+      likes = likes.filter((id) => id !== req.user._id);
     } else {
-      post.likes.push(req.user._id);
+      likes.push(req.user._id);
     }
 
+    post.likes = likes;
     await post.save();
     res.json(post.likes);
   } catch (error) {
@@ -115,7 +105,7 @@ const commentPost = async (req, res) => {
   const { text } = req.body;
 
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findByPk(req.params.id);
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
@@ -128,10 +118,14 @@ const commentPost = async (req, res) => {
       text
     });
     
-    // Populate user details for the response
-    await comment.populate('userId', 'name');
+    const fullComment = await Comment.findByPk(comment._id, {
+      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'isStudent'] }]
+    });
 
-    res.status(201).json(comment);
+    const commentObj = fullComment.toJSON();
+    commentObj.userId = commentObj.user;
+
+    res.status(201).json(commentObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -142,10 +136,19 @@ const commentPost = async (req, res) => {
 // @access  Public
 const getComments = async (req, res) => {
   try {
-    const comments = await Comment.find({ postId: req.params.id })
-      .sort({ createdAt: 1 })
-      .populate('userId', 'name');
-    res.json(comments);
+    const comments = await Comment.findAll({
+      where: { postId: req.params.id },
+      order: [['createdAt', 'ASC']],
+      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'isStudent'] }]
+    });
+
+    const formattedComments = comments.map(c => {
+      const cObj = c.toJSON();
+      cObj.userId = cObj.user;
+      return cObj;
+    });
+
+    res.json(formattedComments);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -156,13 +159,92 @@ const getComments = async (req, res) => {
 // @access  Public
 const getPostById = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id).populate('userId', 'name university');
+    const post = await Post.findByPk(req.params.id, {
+      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'isStudent'] }]
+    });
+
     if (post) {
-      console.log("console from backend",post);
-      res.json(post);
+      const postObj = post.toJSON();
+      postObj.userId = postObj.user;
+      console.log("console from backend", postObj);
+      res.json(postObj);
     } else {
       res.status(404).json({ message: 'Post not found' });
     }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update own post (Student only)
+// @route   PUT /api/posts/:id
+// @access  Private (owner only)
+const updatePost = async (req, res) => {
+  const { content } = req.body;
+
+  try {
+    const post = await Post.findByPk(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (post.userId !== req.user._id) {
+      return res.status(403).json({ message: 'Not authorised to edit this post' });
+    }
+
+    let imageUrl = post.imageUrl;
+    let imageId = post.imageId;
+
+    if (req.file) {
+      // Delete old image from Cloudinary if it exists
+      if (post.imageId) {
+        const { deleteImage } = require('../utils/cloudinary');
+        await deleteImage(post.imageId);
+      }
+      const { uploadImage } = require('../utils/cloudinary');
+      const result = await uploadImage(req.file.path);
+      imageUrl = result.secure_url;
+      imageId = result.public_id;
+    }
+
+    post.content = content ?? post.content;
+    post.imageUrl = imageUrl;
+    post.imageId = imageId;
+    await post.save();
+
+    res.json(post);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete own post (Student only)
+// @route   DELETE /api/posts/:id
+// @access  Private (owner only)
+const deleteOwnPost = async (req, res) => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    if (post.userId !== req.user._id) {
+      return res.status(403).json({ message: 'Not authorised to delete this post' });
+    }
+
+    // Delete image from Cloudinary if exists
+    if (post.imageId) {
+      const { deleteImage } = require('../utils/cloudinary');
+      await deleteImage(post.imageId);
+    }
+
+    // Delete associated comments then the post
+    await Comment.destroy({ where: { postId: post._id } });
+    await post.destroy();
+
+    res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -174,5 +256,8 @@ module.exports = {
   likePost,
   commentPost,
   getComments,
-  getPostById
+  getPostById,
+  updatePost,
+  deleteOwnPost
 };
+

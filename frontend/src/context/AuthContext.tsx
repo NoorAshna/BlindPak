@@ -8,7 +8,9 @@ interface User {
     _id: string;
     name: string;
     isStudent: boolean;
+    canPost?: boolean;
     isAdmin: boolean;
+    university?: string;
     token: string;
 }
 

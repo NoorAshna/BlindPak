@@ -43,7 +43,13 @@ export default function Home() {
 
                 <div className="space-y-4">
                     {posts.map((post: any) => (
-                        <PostCard key={post._id} post={post} onLike={handleLike} />
+                        <PostCard
+                            key={post._id}
+                            post={post}
+                            onLike={handleLike}
+                            onPostUpdated={fetchPosts}
+                            onPostDeleted={fetchPosts}
+                        />
                     ))}
                 </div>
             </div>

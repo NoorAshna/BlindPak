@@ -8,7 +8,9 @@ const {
   likePost,
   commentPost,
   getComments,
-  getPostById
+  getPostById,
+  updatePost,
+  deleteOwnPost
 } = require('../controllers/postController');
 
 const upload = multer({ dest: 'uploads/' });
@@ -17,7 +19,10 @@ router.route('/')
   .get(getPosts)
   .post(protect, upload.single('image'), createPost);
 
-router.route('/:id').get(getPostById);
+router.route('/:id')
+  .get(getPostById)
+  .put(protect, upload.single('image'), updatePost)
+  .delete(protect, deleteOwnPost);
 router.route('/:id/like').post(protect, likePost);
 router.route('/:id/comment').post(protect, commentPost);
 router.route('/:id/comments').get(getComments);

@@ -1,10 +1,10 @@
-const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const { initiateRegistration, verifyRegistration, loginUser, forgotPassword, resetPassword } = require('./controllers/authController');
-const User = require('./models/User');
-const Otp = require('./models/Otp');
-
 dotenv.config();
+const connectDB = require('./config/db');
+const { sequelize } = connectDB;
+const { initiateRegistration, verifyRegistration, loginUser, forgotPassword, resetPassword } = require('./controllers/authController');
+const { User, Otp } = require('./models');
+
 process.env.TEST_MODE = 'true';
 
 const mockRes = () => {
@@ -22,15 +22,15 @@ const mockRes = () => {
 
 const runTests = async () => {
   try {
-    const mongoUri = 'mongodb://localhost:27017/collegeblind';
-    await mongoose.connect(mongoUri);
-    console.log('Connected to MongoDB');
+    await connectDB();
+    console.log('Connected to PostgreSQL');
 
     // Cleanup
-    await User.deleteMany({ email: 'test@nu.edu.pk' });
-    await User.deleteMany({ email: 'public@example.com' });
-    await Otp.deleteMany({ email: 'test@nu.edu.pk' });
-    await Otp.deleteMany({ email: 'public@example.com' });
+    const hashEmail = require('./utils/hash');
+    await User.destroy({ where: { hashedEmail: hashEmail('test@nu.edu.pk') } });
+    await User.destroy({ where: { hashedEmail: hashEmail('public@example.com') } });
+    await Otp.destroy({ where: { email: 'test@nu.edu.pk' } });
+    await Otp.destroy({ where: { email: 'public@example.com' } });
 
     console.log('\n--- Test 1: Public Registration (Gmail) ---');
     let req = { body: { email: 'public@example.com', password: 'password123' } };
@@ -39,7 +39,7 @@ const runTests = async () => {
     console.log(`Status: ${res.statusCode}, Message: ${res.data?.message}`);
 
     // Verify Public
-    let otpRecord = await Otp.findOne({ email: 'public@example.com' });
+    let otpRecord = await Otp.findOne({ where: { email: 'public@example.com' } });
     let otp = otpRecord ? otpRecord.otp : null;
     req = { body: { email: 'public@example.com', otp } };
     res = mockRes();
@@ -53,7 +53,7 @@ const runTests = async () => {
     console.log(`Status: ${res.statusCode}, Message: ${res.data?.message}`);
 
     // Verify Student
-    otpRecord = await Otp.findOne({ email: 'test@nu.edu.pk' });
+    otpRecord = await Otp.findOne({ where: { email: 'test@nu.edu.pk' } });
     otp = otpRecord ? otpRecord.otp : null;
     req = { body: { email: 'test@nu.edu.pk', otp } };
     res = mockRes();
@@ -75,7 +75,7 @@ const runTests = async () => {
   } catch (error) {
     console.error(error);
   } finally {
-    await mongoose.disconnect();
+    await sequelize.close();
   }
 };
 
