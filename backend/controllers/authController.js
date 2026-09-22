@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const universityDomains = require('../utils/universityDomains');
+const { isValidEmail, getPasswordValidationError } = require('../utils/validation');
 
 
 const adjectives = [
@@ -56,8 +57,18 @@ const generateToken = (id) => {
 const initiateRegistration = async (req, res) => {
   const { email, password, role } = req.body;
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ message: 'Please enter a valid email address' });
+  }
+
+  const passwordValidationError = getPasswordValidationError(password);
+  if (passwordValidationError) {
+    return res.status(400).json({ message: passwordValidationError });
+  }
+
   try {
-    const domain = email.split('@')[1];
+    const normalizedEmail = email.trim().toLowerCase();
+    const domain = normalizedEmail.split('@')[1];
     const isStudentDomain = Object.keys(universityDomains).includes(domain);
 
     // If user explicitly selected 'student', enforce university email
@@ -69,7 +80,7 @@ const initiateRegistration = async (req, res) => {
 
     // Determine user role
     const userRole = (role === 'student' && isStudentDomain) ? 'student' : 'public';
-    const hashedEmail = hashEmail(email);
+    const hashedEmail = hashEmail(normalizedEmail);
 
     // Check if user exists (using hashedEmail for everyone now)
     const userExists = await User.findOne({ where: { hashedEmail } });
@@ -96,11 +107,11 @@ const initiateRegistration = async (req, res) => {
     };
 
     // Save OTP and Temp Data
-    await Otp.destroy({ where: { email } }); // Clear old OTPs
-    await Otp.create({ email, otp, tempUserData });
+    await Otp.destroy({ where: { email: normalizedEmail } }); // Clear old OTPs
+    await Otp.create({ email: normalizedEmail, otp, tempUserData });
 
-    console.log(`TESTING OTP for ${email}: ${otp}`); // For testing
-    await sendOTP(email, otp);
+    console.log(`TESTING OTP for ${normalizedEmail}: ${otp}`); // For testing
+    await sendOTP(normalizedEmail, otp);
 
     res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
@@ -115,7 +126,7 @@ const verifyRegistration = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
-    const validOtp = await Otp.findOne({ where: { email, otp } });
+    const validOtp = await Otp.findOne({ where: { email: email.trim().toLowerCase(), otp } });
 
     if (!validOtp || !validOtp.tempUserData) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
@@ -125,7 +136,7 @@ const verifyRegistration = async (req, res) => {
     const user = await User.create(validOtp.tempUserData);
 
     // Delete OTP
-    await Otp.destroy({ where: { email } });
+    await Otp.destroy({ where: { email: email.trim().toLowerCase() } });
 
     res.status(201).json({
       _id: user._id,
@@ -145,8 +156,12 @@ const verifyRegistration = async (req, res) => {
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ message: 'Please enter a valid email address' });
+  }
+
   try {
-    const hashedEmail = hashEmail(email);
+    const hashedEmail = hashEmail(email.trim().toLowerCase());
     
     // Find user by hashedEmail (Unified lookup)
     const user = await User.findOne({ where: { hashedEmail } });
@@ -173,8 +188,13 @@ const loginUser = async (req, res) => {
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ message: 'Please enter a valid email address' });
+  }
+
   try {
-    const hashedEmail = hashEmail(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const hashedEmail = hashEmail(normalizedEmail);
     const user = await User.findOne({ where: { hashedEmail } });
 
     if (!user) {
@@ -184,15 +204,15 @@ const forgotPassword = async (req, res) => {
     const otp = generateOTP();
     
     // Store OTP with a flag indicating it's for password reset
-    await Otp.destroy({ where: { email } });
+    await Otp.destroy({ where: { email: normalizedEmail } });
     await Otp.create({ 
-      email, 
+      email: normalizedEmail, 
       otp, 
       tempUserData: { type: 'password_reset', userId: user._id } 
     });
 
-    console.log(`TESTING RESET OTP for ${email}: ${otp}`);
-    await sendOTP(email, otp);
+    console.log(`TESTING RESET OTP for ${normalizedEmail}: ${otp}`);
+    await sendOTP(normalizedEmail, otp);
 
     res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
@@ -206,8 +226,17 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
+  const passwordValidationError = getPasswordValidationError(newPassword);
+  if (passwordValidationError) {
+    return res.status(400).json({ message: passwordValidationError });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ message: 'Please enter a valid email address' });
+  }
+
   try {
-    const validOtp = await Otp.findOne({ where: { email, otp } });
+    const validOtp = await Otp.findOne({ where: { email: email.trim().toLowerCase(), otp } });
 
     if (!validOtp || validOtp.tempUserData?.type !== 'password_reset') {
       return res.status(400).json({ message: 'Invalid or expired OTP' });

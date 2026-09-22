@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { emailValidation } from '@/lib/validation';
 
 export default function LoginPage() {
     const { register, handleSubmit, formState: { errors } } = useForm();
@@ -40,11 +41,11 @@ export default function LoginPage() {
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Email</label>
                         <input
-                            {...register('email', { required: true })}
+                            {...register('email', emailValidation)}
                             type="email"
                             className="text-black mt-1 block w-full rounded border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
                         />
-                        {errors.email && <span className="text-sm text-red-500">Email is required</span>}
+                        {errors.email && <span className="text-sm text-red-500">{String(errors.email.message)}</span>}
                     </div>
 
                     <div>

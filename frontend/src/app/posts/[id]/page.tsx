@@ -8,11 +8,20 @@ import { useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { Pencil, Trash2, Check, X } from 'lucide-react';
 
+interface CommentsResponse {
+    comments: any[];
+    nextCursor: string | null;
+    hasMore: boolean;
+}
+
 export default function PostDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
     const [post, setPost] = useState<any>(null);
     const [comments, setComments] = useState([]);
+    const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
+    const [hasMoreComments, setHasMoreComments] = useState(false);
+    const [loadingMoreComments, setLoadingMoreComments] = useState(false);
     const { user } = useAuth();
     const { register, handleSubmit, reset } = useForm();
     const [loading, setLoading] = useState(false);
@@ -33,10 +42,32 @@ export default function PostDetailsPage() {
 
     const fetchComments = async () => {
         try {
-            const res = await api.get(`/posts/${id}/comments`);
+            const res = await api.get<CommentsResponse>(`/posts/${id}/comments`, {
+                params: { limit: 10 }
+            });
             setComments(res.data.comments);
+            setCommentsCursor(res.data.nextCursor);
+            setHasMoreComments(res.data.hasMore);
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    const loadMoreComments = async () => {
+        if (!id || !commentsCursor || loadingMoreComments) return;
+
+        setLoadingMoreComments(true);
+        try {
+            const res = await api.get<CommentsResponse>(`/posts/${id}/comments`, {
+                params: { limit: 10, cursor: commentsCursor }
+            });
+            setComments((currentComments) => [...currentComments, ...res.data.comments]);
+            setCommentsCursor(res.data.nextCursor);
+            setHasMoreComments(res.data.hasMore);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoadingMoreComments(false);
         }
     };
 
@@ -220,6 +251,17 @@ export default function PostDetailsPage() {
                         })}
                         {comments.length === 0 && <p className="text-gray-500">No comments yet.</p>}
                     </div>
+
+                    {hasMoreComments && (
+                        <button
+                            type="button"
+                            onClick={loadMoreComments}
+                            disabled={loadingMoreComments}
+                            className="mb-6 w-full rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                            {loadingMoreComments ? 'Loading...' : 'Load more comments'}
+                        </button>
+                    )}
 
                     {user && (
                         <form onSubmit={handleSubmit(onCommentSubmit)}>

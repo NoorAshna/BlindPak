@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { emailValidation, passwordValidation } from '@/lib/validation';
 
 export default function RegisterPage() {
     const { register, handleSubmit, watch, formState: { errors } } = useForm();
@@ -88,12 +89,12 @@ export default function RegisterPage() {
                             {role === 'student' ? 'University Email' : 'Email Address'}
                         </label>
                         <input
-                            {...register('email', { required: true })}
+                            {...register('email', emailValidation)}
                             type="email"
                             className="text-black mt-1 block w-full rounded border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
                             placeholder={role === 'student' ? 'yourname@nu.edu.pk' : 'email@example.com'}
                         />
-                        {errors.email && <span className="text-sm text-red-500">Email is required</span>}
+                        {errors.email && <span className="text-sm text-red-500">{String(errors.email.message)}</span>}
                         {role === 'student' ? (
                             <p className="mt-1 text-xs text-blue-600">
                                 Must be your university email (e.g., @nu.edu.pk, @nust.edu.pk) to verify student status.
@@ -108,21 +109,24 @@ export default function RegisterPage() {
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Password</label>
                         <input
-                            {...register('password', { required: true, minLength: 6 })}
+                            {...register('password', passwordValidation)}
                             type="password"
                             className="text-black mt-1 block w-full rounded border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
                         />
-                        {errors.password && <span className="text-sm text-red-500">Password must be at least 6 chars</span>}
+                        {errors.password && <span className="text-sm text-red-500">{String(errors.password.message)}</span>}
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
                         <input
-                            {...register('confirmPassword', { required: true })}
+                            {...register('confirmPassword', {
+                                required: 'Please confirm your password',
+                                validate: (value, formValues) => value === formValues.password || 'Passwords do not match',
+                            })}
                             type="password"
                             className="text-black mt-1 block w-full rounded border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
                         />
-                        {errors.confirmPassword && <span className="text-sm text-red-500">Please confirm your password</span>}
+                        {errors.confirmPassword && <span className="text-sm text-red-500">{String(errors.confirmPassword.message)}</span>}
                     </div>
 
                     <button
