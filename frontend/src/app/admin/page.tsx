@@ -86,7 +86,7 @@ export default function AdminPage() {
                 ) : null}
 
                 {/* Management Links */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Link
                         href="/admin/users"
                         className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 block"
@@ -100,13 +100,6 @@ export default function AdminPage() {
                     >
                         <h2 className="text-xl font-semibold text-gray-900 mb-2">Post Management</h2>
                         <p className="text-gray-600">Moderate and delete posts</p>
-                    </Link>
-                    <Link
-                        href="/admin/comments"
-                        className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 block"
-                    >
-                        <h2 className="text-xl font-semibold text-gray-900 mb-2">Comment Management</h2>
-                        <p className="text-gray-600">Moderate and delete comments</p>
                     </Link>
                 </div>
             </div>

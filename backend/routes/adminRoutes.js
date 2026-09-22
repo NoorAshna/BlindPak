@@ -4,6 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const { adminOnly } = require('../middleware/adminMiddleware');
 const {
   deletePost,
+  updateComment,
   deleteComment,
   getAllUsers,
   updateUserPassword,
@@ -23,6 +24,7 @@ router.get('/stats', getAdminStats);
 router.delete('/posts/:id', deletePost);
 
 // Comment management
+router.put('/comments/:id', updateComment);
 router.delete('/comments/:id', deleteComment);
 
 // User management

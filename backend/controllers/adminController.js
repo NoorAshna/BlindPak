@@ -33,6 +33,32 @@ const deletePost = async (req, res) => {
 // @desc    Delete a comment (Admin only)
 // @route   DELETE /api/admin/comments/:id
 // @access  Private/Admin
+const updateComment = async (req, res) => {
+  const { text } = req.body;
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ message: 'Comment text is required' });
+  }
+
+  try {
+    const comment = await Comment.findByPk(req.params.id);
+
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+
+    comment.text = text.trim();
+    await comment.save();
+
+    res.json(comment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a comment (Admin only)
+// @route   DELETE /api/admin/comments/:id
+// @access  Private/Admin
 const deleteComment = async (req, res) => {
   try {
     const comment = await Comment.findByPk(req.params.id);
@@ -207,6 +233,7 @@ const updateUserRole = async (req, res) => {
 
 module.exports = {
   deletePost,
+  updateComment,
   deleteComment,
   getAllUsers,
   updateUserPassword,
