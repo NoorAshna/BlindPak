@@ -150,7 +150,9 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                 </div>
             ) : (
                 <Link href={`/posts/${post._id}`} className="block">
-                    <p className="mb-3 whitespace-pre-line text-gray-800 leading-relaxed">{post.content}</p>
+                    <p className="mb-3 whitespace-pre-line text-gray-800 leading-relaxed">
+                        {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
+                    </p>
                 </Link>
             )}
 
