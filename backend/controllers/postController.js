@@ -10,7 +10,7 @@ const createPost = async (req, res) => {
     return res.status(403).json({ message: 'Only students and admins can post' });
   }
 
-  const { content } = req.body;
+  const { content, title } = req.body;
   let imageUrl = null;
   let imageId = null;
  
@@ -24,6 +24,7 @@ const createPost = async (req, res) => {
     const post = await Post.create({
       _id: uuidv4(),
       userId: req.user._id,
+      title: title || null,
       content,
       imageUrl,
       imageId,
@@ -180,7 +181,7 @@ const getPostById = async (req, res) => {
 // @route   PUT /api/posts/:id
 // @access  Private (owner only)
 const updatePost = async (req, res) => {
-  const { content } = req.body;
+  const { content, title } = req.body;
 
   try {
     const post = await Post.findByPk(req.params.id);
@@ -208,6 +209,7 @@ const updatePost = async (req, res) => {
       imageId = result.public_id;
     }
 
+    post.title = title !== undefined ? (title || null) : post.title;
     post.content = content ?? post.content;
     post.imageUrl = imageUrl;
     post.imageId = imageId;

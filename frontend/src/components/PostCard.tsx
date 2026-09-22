@@ -9,6 +9,7 @@ import api from '@/lib/api';
 
 export interface Post {
     _id: string;
+    title?: string | null;
     content: string;
     imageUrl?: string | null;
     likes: string[];
@@ -34,6 +35,7 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
     const { user } = useAuth();
     const [isEditing, setIsEditing] = useState(false);
     const [content, setContent] = useState(post.content);
+    const [editTitle, setEditTitle] = useState(post.title || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
@@ -49,7 +51,7 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
         setIsSubmitting(true);
         setError('');
         try {
-            await api.put(`/posts/${post._id}`, { content });
+            await api.put(`/posts/${post._id}`, { content, title: editTitle || null });
             setIsEditing(false);
             if (onPostUpdated) onPostUpdated();
         } catch (err: any) {
@@ -120,6 +122,13 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
             {/* Post Content or Edit Form */}
             {isEditing ? (
                 <div className="mb-3">
+                    <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        placeholder="Post heading (optional)"
+                        className="mb-2 w-full rounded border border-gray-300 p-2 text-sm font-bold text-gray-900 focus:border-blue-500 focus:outline-none"
+                    />
                     <textarea
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
@@ -132,6 +141,7 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                         <button
                             onClick={() => {
                                 setContent(post.content);
+                                setEditTitle(post.title || '');
                                 setIsEditing(false);
                             }}
                             disabled={isSubmitting}
@@ -150,6 +160,11 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                 </div>
             ) : (
                 <Link href={`/posts/${post._id}`} className="block">
+                    {post.title && (
+                        <p className="mb-1 font-bold text-gray-900 text-base leading-snug">
+                            {post.title}
+                        </p>
+                    )}
                     <p className="mb-3 whitespace-pre-line text-gray-800 leading-relaxed">
                         {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
                     </p>

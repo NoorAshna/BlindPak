@@ -18,6 +18,9 @@ export default function CreatePost({ onPostCreated }: { onPostCreated: () => voi
         setLoading(true);
         const formData = new FormData();
         formData.append('content', data.content);
+        if (data.title) {
+            formData.append('title', data.title);
+        }
         if (image) {
             formData.append('image', image);
         }
@@ -39,6 +42,12 @@ export default function CreatePost({ onPostCreated }: { onPostCreated: () => voi
     return (
         <div className="mb-6 rounded-lg bg-white p-4 shadow">
             <form onSubmit={handleSubmit(onSubmit)}>
+                <input
+                    {...register('title')}
+                    type="text"
+                    placeholder="Heading"
+                    className="mb-2 w-full rounded border border-gray-300 p-2 text-sm font-bold text-gray-900 focus:border-blue-500 focus:outline-none"
+                />
                 <textarea
                     {...register('content', { required: true })}
                     placeholder="What's on your mind?"

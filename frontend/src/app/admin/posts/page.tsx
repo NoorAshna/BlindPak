@@ -7,6 +7,7 @@ import api from "@/lib/api";
 
 interface Post {
     _id: string;
+    title?: string | null;
     content: string;
     imageUrl: string | null;
     user: {
@@ -87,7 +88,12 @@ export default function PostManagementPage() {
                                                 {new Date(post.createdAt).toLocaleDateString()}
                                             </span>
                                         </div>
-                                        <p className="text-gray-700 mb-3">{post.content}</p>
+                                        {post.title && (
+                                            <p className="font-bold text-gray-900 mb-1">{post.title}</p>
+                                        )}
+                                        <p className="text-gray-700 mb-3">
+                                            {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
+                                        </p>
                                         {post.imageUrl && (
                                             <img
                                                 src={post.imageUrl}

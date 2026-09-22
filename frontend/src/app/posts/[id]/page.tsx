@@ -171,7 +171,12 @@ export default function PostDetailsPage() {
                             </div>
                         </div>
                     ) : (
-                        <p className="mb-4 whitespace-pre-line text-lg text-gray-800 leading-relaxed">{post.content}</p>
+                        <>
+                            {post.title && (
+                                <p className="mb-2 text-xl font-bold text-gray-900 leading-snug">{post.title}</p>
+                            )}
+                            <p className="mb-4 whitespace-pre-line text-lg text-gray-800 leading-relaxed">{post.content}</p>
+                        </>
                     )}
 
                     {post.imageUrl && (
