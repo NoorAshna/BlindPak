@@ -18,7 +18,7 @@ export default function PostDetailsPage() {
     const { id } = useParams();
     const router = useRouter();
     const [post, setPost] = useState<any>(null);
-    const [comments, setComments] = useState([]);
+    const [comments, setComments] = useState<any[]>([]);
     const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
     const [hasMoreComments, setHasMoreComments] = useState(false);
     const [loadingMoreComments, setLoadingMoreComments] = useState(false);
@@ -263,7 +263,7 @@ export default function PostDetailsPage() {
                         </button>
                     )}
 
-                    {user && (
+                    {user && user.role !== 'public' && (
                         <form onSubmit={handleSubmit(onCommentSubmit)}>
                             <textarea
                                 {...register('text', { required: true })}

@@ -114,6 +114,10 @@ const getPosts = async (req, res) => {
 // @route   POST /api/posts/:id/like
 // @access  Private
 const likePost = async (req, res) => {
+  if (req.user.role !== 'student' && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Only students and admins can like posts' });
+  }
+
   try {
     const post = await Post.findByPk(req.params.id);
 
@@ -142,6 +146,10 @@ const likePost = async (req, res) => {
 // @access  Private
 const commentPost = async (req, res) => {
   const { text } = req.body;
+
+  if (req.user.role !== 'student' && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Only students and admins can comment on posts' });
+  }
 
   try {
     const post = await Post.findByPk(req.params.id);

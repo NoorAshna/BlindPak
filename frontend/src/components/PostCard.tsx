@@ -206,14 +206,24 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
             {/* Footer: Engagement controls and sharing actions */}
             <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => onLike(post._id)}
-                        className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-red-50 hover:text-red-500"
-                        aria-label="Like post"
-                    >
-                        <Heart size={19} strokeWidth={1.8} />
-                        <span>{post.likes?.length || 0}</span>
-                    </button>
+                    {user?.role === 'student' || user?.role === 'admin' ? (
+                        <button
+                            onClick={() => onLike(post._id)}
+                            className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-red-50 hover:text-red-500"
+                            aria-label="Like post"
+                        >
+                            <Heart size={19} strokeWidth={1.8} />
+                            <span>{post.likes?.length || 0}</span>
+                        </button>
+                    ) : (
+                        <div
+                            className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-500"
+                            aria-label={`${post.likes?.length || 0} likes`}
+                        >
+                            <Heart size={19} strokeWidth={1.8} />
+                            <span>{post.likes?.length || 0}</span>
+                        </div>
+                    )}
                     <Link
                         href={`/posts/${post._id}`}
                         className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-500"
