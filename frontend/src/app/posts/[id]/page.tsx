@@ -34,7 +34,7 @@ export default function PostDetailsPage() {
     const fetchComments = async () => {
         try {
             const res = await api.get(`/posts/${id}/comments`);
-            setComments(res.data);
+            setComments(res.data.comments);
         } catch (error) {
             console.error(error);
         }

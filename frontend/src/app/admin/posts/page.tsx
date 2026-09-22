@@ -33,12 +33,31 @@ interface Comment {
     createdAt: string;
 }
 
+interface PostsResponse {
+    posts: Post[];
+    nextCursor: string | null;
+    hasMore: boolean;
+}
+
+interface CommentsResponse {
+    comments: Comment[];
+    nextCursor: string | null;
+    hasMore: boolean;
+}
+
 export default function PostManagementPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const [posts, setPosts] = useState<Post[]>([]);
     const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
+    const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set());
+    const [commentCursors, setCommentCursors] = useState<Record<string, string | null>>({});
+    const [commentHasMore, setCommentHasMore] = useState<Record<string, boolean>>({});
+    const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
     const [loadingPosts, setLoadingPosts] = useState(true);
+    const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+    const [nextPostCursor, setNextPostCursor] = useState<string | null>(null);
+    const [hasMorePosts, setHasMorePosts] = useState(true);
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
     const [editedCommentText, setEditedCommentText] = useState("");
 
@@ -54,27 +73,91 @@ export default function PostManagementPage() {
         }
     }, [user]);
 
-    const fetchPosts = async () => {
-        try {
-            const response = await api.get("/posts");
-            setPosts(response.data);
+    const fetchPosts = async (append = false) => {
+        if (append) {
+            setLoadingMorePosts(true);
+        } else {
+            setLoadingPosts(true);
+        }
 
-            const commentEntries = await Promise.all(
-                response.data.map(async (post: Post) => {
-                    try {
-                        const commentsResponse = await api.get(`/posts/${post._id}/comments`);
-                        return [post._id, commentsResponse.data] as const;
-                    } catch (error) {
-                        console.error(`Failed to fetch comments for post ${post._id}:`, error);
-                        return [post._id, []] as const;
-                    }
-                })
-            );
-            setCommentsByPost(Object.fromEntries(commentEntries));
+        try {
+            const response = await api.get<PostsResponse>("/posts", {
+                params: { limit: 10, ...(append && nextPostCursor ? { cursor: nextPostCursor } : {}) }
+            });
+            setPosts((currentPosts) => append ? [...currentPosts, ...response.data.posts] : response.data.posts);
+            setNextPostCursor(response.data.nextCursor);
+            setHasMorePosts(response.data.hasMore);
         } catch (error) {
             console.error("Failed to fetch posts:", error);
         } finally {
             setLoadingPosts(false);
+            setLoadingMorePosts(false);
+        }
+    };
+
+    const togglePostComments = async (postId: string) => {
+        const isExpanded = expandedPosts.has(postId);
+        if (isExpanded) {
+            setExpandedPosts((currentPosts) => {
+                const nextPosts = new Set(currentPosts);
+                nextPosts.delete(postId);
+                return nextPosts;
+            });
+            return;
+        }
+
+        setExpandedPosts((currentPosts) => new Set(currentPosts).add(postId));
+        if (commentsByPost[postId]) return;
+
+        setLoadingComments((currentLoading) => ({ ...currentLoading, [postId]: true }));
+        try {
+            const response = await api.get<CommentsResponse>(`/posts/${postId}/comments`, {
+                params: { limit: 10 }
+            });
+            setCommentsByPost((currentComments) => ({
+                ...currentComments,
+                [postId]: response.data.comments,
+            }));
+            setCommentCursors((currentCursors) => ({
+                ...currentCursors,
+                [postId]: response.data.nextCursor,
+            }));
+            setCommentHasMore((currentHasMore) => ({
+                ...currentHasMore,
+                [postId]: response.data.hasMore,
+            }));
+        } catch (error) {
+            console.error(`Failed to fetch comments for post ${postId}:`, error);
+        } finally {
+            setLoadingComments((currentLoading) => ({ ...currentLoading, [postId]: false }));
+        }
+    };
+
+    const loadMoreComments = async (postId: string) => {
+        const cursor = commentCursors[postId];
+        if (!cursor || loadingComments[postId]) return;
+
+        setLoadingComments((currentLoading) => ({ ...currentLoading, [postId]: true }));
+        try {
+            const response = await api.get<CommentsResponse>(`/posts/${postId}/comments`, {
+                params: { limit: 10, cursor }
+            });
+            setCommentsByPost((currentComments) => ({
+                ...currentComments,
+                [postId]: [...(currentComments[postId] || []), ...response.data.comments],
+            }));
+            setCommentCursors((currentCursors) => ({
+                ...currentCursors,
+                [postId]: response.data.nextCursor,
+            }));
+            setCommentHasMore((currentHasMore) => ({
+                ...currentHasMore,
+                [postId]: response.data.hasMore,
+            }));
+        } catch (error) {
+            console.error(`Failed to load more comments for post ${postId}:`, error);
+        } finally {
+            setLoadingComments((currentLoading) => ({ ...currentLoading, [postId]: false }));
         }
     };
 
@@ -86,7 +169,7 @@ export default function PostManagementPage() {
             setCommentsByPost((currentComments) => {
                 const updatedComments = { ...currentComments };
                 Object.keys(updatedComments).forEach((postId) => {
-                    updatedComments[postId] = updatedComments[postId].map((comment) =>
+                    updatedComments[postId] = (updatedComments[postId] || []).map((comment) =>
                         comment._id === commentId
                             ? { ...comment, text: editedCommentText.trim() }
                             : comment
@@ -108,7 +191,7 @@ export default function PostManagementPage() {
             await api.delete(`/admin/comments/${commentId}`);
             setCommentsByPost((currentComments) => ({
                 ...currentComments,
-                [postId]: currentComments[postId].filter((comment) => comment._id !== commentId),
+                [postId]: (currentComments[postId] || []).filter((comment) => comment._id !== commentId),
             }));
         } catch (error: any) {
             alert(error.response?.data?.message || "Failed to delete comment");
@@ -169,16 +252,26 @@ export default function PostManagementPage() {
                                             />
                                         )}
                                         <div className="text-sm text-gray-500">
-                                            {commentsByPost[post._id]?.length ?? post.commentCount} comment{(commentsByPost[post._id]?.length ?? post.commentCount) !== 1 ? "s" : ""}
+                                            {post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}
                                         </div>
 
-                                        <div className="mt-4 border-t border-gray-100 pt-4">
-                                            <h2 className="mb-3 text-sm font-semibold text-gray-900">Comments</h2>
-                                            {(commentsByPost[post._id] || []).length === 0 ? (
-                                                <p className="text-sm text-gray-500">No comments on this post.</p>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                    {commentsByPost[post._id].map((comment) => {
+                                        <button
+                                            onClick={() => togglePostComments(post._id)}
+                                            className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                                        >
+                                            {expandedPosts.has(post._id) ? "Hide comments" : "View comments"}
+                                        </button>
+
+                                        {expandedPosts.has(post._id) && (
+                                            <div className="mt-4 border-t border-gray-100 pt-4">
+                                                <h2 className="mb-3 text-sm font-semibold text-gray-900">Comments</h2>
+                                                {loadingComments[post._id] && !commentsByPost[post._id] ? (
+                                                    <p className="text-sm text-gray-500">Loading comments...</p>
+                                                ) : (commentsByPost[post._id] || []).length === 0 ? (
+                                                    <p className="text-sm text-gray-500">No comments on this post.</p>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        {commentsByPost[post._id].map((comment) => {
                                                         const commenterName = comment.userId?.name || comment.user?.name || "Unknown user";
                                                         const isEditing = editingCommentId === comment._id;
 
@@ -242,10 +335,20 @@ export default function PostManagementPage() {
                                                                 )}
                                                             </div>
                                                         );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
+                                                        })}
+                                                        {commentHasMore[post._id] && (
+                                                            <button
+                                                                onClick={() => loadMoreComments(post._id)}
+                                                                disabled={loadingComments[post._id]}
+                                                                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                                                            >
+                                                                {loadingComments[post._id] ? "Loading..." : "Load more comments"}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <button
                                         onClick={() => handleDeletePost(post._id)}
@@ -256,6 +359,15 @@ export default function PostManagementPage() {
                                 </div>
                             </div>
                         ))}
+                        {hasMorePosts && (
+                            <button
+                                onClick={() => fetchPosts(true)}
+                                disabled={loadingMorePosts}
+                                className="w-full rounded-lg bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                {loadingMorePosts ? "Loading..." : "Load more posts"}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>

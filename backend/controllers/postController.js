@@ -1,4 +1,5 @@
 const { Post, Comment, User } = require('../models');
+const { Op } = require('sequelize');
 const { uploadImage } = require('../utils/cloudinary');
 const { v4: uuidv4 } = require('uuid');
 
@@ -42,31 +43,68 @@ const createPost = async (req, res) => {
 // @access  Public
 const getPosts = async (req, res) => {
   try {
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 50)
+      : 10;
+    const cursor = req.query.cursor ? Buffer.from(req.query.cursor, 'base64url').toString('utf8') : null;
+    let cursorDate;
+    let cursorId;
+
+    if (cursor) {
+      [cursorDate, cursorId] = cursor.split('|');
+      if (!cursorDate || !cursorId || Number.isNaN(new Date(cursorDate).getTime())) {
+        return res.status(400).json({ message: 'Invalid posts cursor' });
+      }
+    }
+
     const posts = await Post.findAll({
+      where: cursorDate ? {
+        [Op.or]: [
+          { createdAt: { [Op.lt]: new Date(cursorDate) } },
+          {
+            createdAt: new Date(cursorDate),
+            _id: { [Op.lt]: cursorId }
+          }
+        ]
+      } : undefined,
       include: [
         {
           model: User,
           as: 'user',
           attributes: ['_id', 'name', 'university', 'role']
         },
-        {
-          model: Comment,
-          as: 'comments',
-          attributes: ['_id']
-        }
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC'], ['_id', 'DESC']],
+      limit: limit + 1
     });
 
-    const formattedPosts = posts.map(post => {
+    const hasMore = posts.length > limit;
+    const pagePosts = hasMore ? posts.slice(0, limit) : posts;
+    const commentCounts = pagePosts.length
+      ? await Comment.count({
+          where: { postId: { [Op.in]: pagePosts.map(post => post._id) } },
+          group: ['postId']
+        })
+      : [];
+    const commentCountByPost = commentCounts.reduce((counts, item) => {
+      counts[item.postId] = Number(item.count);
+      return counts;
+    }, {});
+
+    const formattedPosts = pagePosts.map(post => {
       const p = post.toJSON();
-      p.commentCount = p.comments ? p.comments.length : 0;
+      p.commentCount = commentCountByPost[p._id] || 0;
       p.userId = p.user;
-      delete p.comments;
       return p;
     });
 
-    res.json(formattedPosts);
+    const lastPost = pagePosts[pagePosts.length - 1];
+    const nextCursor = hasMore && lastPost
+      ? Buffer.from(`${lastPost.createdAt.toISOString()}|${lastPost._id}`).toString('base64url')
+      : null;
+
+    res.json({ posts: formattedPosts, nextCursor, hasMore });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -137,19 +175,53 @@ const commentPost = async (req, res) => {
 // @access  Public
 const getComments = async (req, res) => {
   try {
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1), 50)
+      : 10;
+    const cursor = req.query.cursor ? Buffer.from(req.query.cursor, 'base64url').toString('utf8') : null;
+    let cursorDate;
+    let cursorId;
+
+    if (cursor) {
+      [cursorDate, cursorId] = cursor.split('|');
+      if (!cursorDate || !cursorId || Number.isNaN(new Date(cursorDate).getTime())) {
+        return res.status(400).json({ message: 'Invalid comments cursor' });
+      }
+    }
+
     const comments = await Comment.findAll({
-      where: { postId: req.params.id },
-      order: [['createdAt', 'ASC']],
+      where: {
+        postId: req.params.id,
+        ...(cursorDate ? {
+          [Op.or]: [
+            { createdAt: { [Op.gt]: new Date(cursorDate) } },
+            {
+              createdAt: new Date(cursorDate),
+              _id: { [Op.gt]: cursorId }
+            }
+          ]
+        } : {})
+      },
+      order: [['createdAt', 'ASC'], ['_id', 'ASC']],
+      limit: limit + 1,
       include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'role'] }]
     });
 
-    const formattedComments = comments.map(c => {
+    const hasMore = comments.length > limit;
+    const pageComments = hasMore ? comments.slice(0, limit) : comments;
+    const formattedComments = pageComments.map(c => {
       const cObj = c.toJSON();
       cObj.userId = cObj.user;
       return cObj;
     });
 
-    res.json(formattedComments);
+    const lastComment = pageComments[pageComments.length - 1];
+    const nextCursor = hasMore && lastComment
+      ? Buffer.from(`${lastComment.createdAt.toISOString()}|${lastComment._id}`).toString('base64url')
+      : null;
+
+    res.json({ comments: formattedComments, nextCursor, hasMore });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
