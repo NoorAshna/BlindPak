@@ -12,6 +12,7 @@ interface Stats {
     totalComments: number;
     totalStudents: number;
     totalPublicUsers: number;
+    totalAdmins?: number;
 }
 
 export default function AdminPage() {
@@ -21,13 +22,13 @@ export default function AdminPage() {
     const [loadingStats, setLoadingStats] = useState(true);
 
     useEffect(() => {
-        if (!loading && (!user || !user.isAdmin)) {
+        if (!loading && (!user || user.role !== 'admin')) {
             router.push("/");
         }
     }, [user, loading, router]);
 
     useEffect(() => {
-        if (user?.isAdmin) {
+        if (user?.role === 'admin') {
             fetchStats();
         }
     }, [user]);
@@ -43,7 +44,7 @@ export default function AdminPage() {
         }
     };
 
-    if (loading || !user?.isAdmin) {
+    if (loading || user?.role !== 'admin') {
         return null;
     }
 
@@ -76,6 +77,10 @@ export default function AdminPage() {
                         <div className="bg-white rounded-lg shadow p-6">
                             <h3 className="text-sm font-medium text-gray-500">Public Users</h3>
                             <p className="text-3xl font-bold text-orange-600">{stats.totalPublicUsers}</p>
+                        </div>
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h3 className="text-sm font-medium text-gray-500">Admin Users</h3>
+                            <p className="text-3xl font-bold text-red-600">{stats.totalAdmins ?? 0}</p>
                         </div>
                     </div>
                 ) : null}

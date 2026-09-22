@@ -162,16 +162,44 @@ const getAdminStats = async (req, res) => {
     const totalUsers = await User.count();
     const totalPosts = await Post.count();
     const totalComments = await Comment.count();
-    const totalStudents = await User.count({ where: { isStudent: true } });
-    const totalPublicUsers = await User.count({ where: { isStudent: false } });
+    const totalStudents = await User.count({ where: { role: 'student' } });
+    const totalPublicUsers = await User.count({ where: { role: 'public' } });
+    const totalAdmins = await User.count({ where: { role: 'admin' } });
 
     res.json({
       totalUsers,
       totalPosts,
       totalComments,
       totalStudents,
-      totalPublicUsers
+      totalPublicUsers,
+      totalAdmins
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Update user role (Admin only)
+// @route   PUT /api/admin/users/:id/role
+// @access  Private/Admin
+const updateUserRole = async (req, res) => {
+  const { role } = req.body;
+
+  if (!role || !['admin', 'student', 'public'].includes(role)) {
+    return res.status(400).json({ message: 'Invalid role. Must be admin, student, or public' });
+  }
+
+  try {
+    const user = await User.findByPk(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({ message: 'User role updated successfully', role: user.role });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -183,5 +211,6 @@ module.exports = {
   getAllUsers,
   updateUserPassword,
   deleteUser,
-  getAdminStats
+  getAdminStats,
+  updateUserRole
 };

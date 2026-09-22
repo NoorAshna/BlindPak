@@ -12,7 +12,7 @@ export default function CreatePost({ onPostCreated }: { onPostCreated: () => voi
     const [loading, setLoading] = useState(false);
     const [image, setImage] = useState<File | null>(null);
 
-    if (!user?.isStudent) return null;
+    if (user?.role !== 'student' && user?.role !== 'admin') return null;
 
     const onSubmit = async (data: any) => {
         setLoading(true);

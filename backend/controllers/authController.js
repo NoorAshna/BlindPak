@@ -67,8 +67,8 @@ const initiateRegistration = async (req, res) => {
       });
     }
 
-    // Only mark as student if role === 'student' and domain is a university domain
-    const isStudent = role === 'student' && isStudentDomain;
+    // Determine user role
+    const userRole = (role === 'student' && isStudentDomain) ? 'student' : 'public';
     const hashedEmail = hashEmail(email);
 
     // Check if user exists (using hashedEmail for everyone now)
@@ -91,9 +91,8 @@ const initiateRegistration = async (req, res) => {
       name: name,
       hashedEmail,
       password: hashedPassword,
-      isStudent,
-      canPost: isStudent,
-      university: isStudent ? universityDomains[domain] : 'General'
+      role: userRole,
+      university: userRole === 'student' ? universityDomains[domain] : 'General'
     };
 
     // Save OTP and Temp Data
@@ -131,10 +130,8 @@ const verifyRegistration = async (req, res) => {
     res.status(201).json({
       _id: user._id,
       name: user.name,
-      isStudent: user.isStudent,
-      isAdmin: user.isAdmin,
+      role: user.role,
       university: user.university,
-      canPost: user.canPost,
       token: generateToken(user._id)
     });
   } catch (error) {
@@ -158,10 +155,8 @@ const loginUser = async (req, res) => {
       res.json({
         _id: user._id,
         name: user.name,
-        isStudent: user.isStudent,
-        isAdmin: user.isAdmin,
+        role: user.role,
         university: user.university,
-        canPost: user.canPost,
         token: generateToken(user._id)
       });
     } else {

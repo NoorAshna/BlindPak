@@ -24,13 +24,18 @@ export default function Navbar() {
                             <div className="flex items-center space-x-4">
                                 <div className="flex items-center space-x-2">
                                     <span className="text-gray-700">Welcome, {user.name || 'User'}</span>
-                                    {user.isStudent && user.university && (
+                                    {user.role === 'student' && user.university && (
                                         <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
                                             🎓 {user.university}
                                         </span>
                                     )}
+                                    {user.role === 'admin' && (
+                                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-800">
+                                            🛡️ Admin
+                                        </span>
+                                    )}
                                 </div>
-                                {user.isAdmin && (
+                                {user.role === 'admin' && (
                                     <Link
                                         href="/admin"
                                         className="px-3 py-2 rounded-md text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
@@ -97,13 +102,18 @@ export default function Navbar() {
                             <>
                                 <div className="flex items-center space-x-2 px-4 py-2 text-base font-medium text-gray-700">
                                     <span>Welcome, {user.name || 'User'}</span>
-                                    {user.isStudent && user.university && (
+                                    {user.role === 'student' && user.university && (
                                         <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
                                             🎓 {user.university}
                                         </span>
                                     )}
+                                    {user.role === 'admin' && (
+                                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800">
+                                            🛡️ Admin
+                                        </span>
+                                    )}
                                 </div>
-                                {user.isAdmin && (
+                                {user.role === 'admin' && (
                                     <Link
                                         href="/admin"
                                         className="block px-4 py-2 text-base font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"

@@ -25,13 +25,13 @@ export default function PostManagementPage() {
     const [loadingPosts, setLoadingPosts] = useState(true);
 
     useEffect(() => {
-        if (!loading && (!user || !user.isAdmin)) {
+        if (!loading && (!user || user.role !== 'admin')) {
             router.push("/");
         }
     }, [user, loading, router]);
 
     useEffect(() => {
-        if (user?.isAdmin) {
+        if (user?.role === 'admin') {
             fetchPosts();
         }
     }, [user]);
@@ -61,7 +61,7 @@ export default function PostManagementPage() {
         }
     };
 
-    if (loading || !user?.isAdmin) {
+    if (loading || user?.role !== 'admin') {
         return null;
     }
 

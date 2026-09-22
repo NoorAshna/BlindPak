@@ -9,8 +9,7 @@ interface User {
     _id: string;
     name: string;
     hashedEmail: string | null;
-    isStudent: boolean;
-    isAdmin: boolean;
+    role: 'admin' | 'student' | 'public';
     university: string;
     createdAt: string;
 }
@@ -22,15 +21,16 @@ export default function UserManagementPage() {
     const [loadingUsers, setLoadingUsers] = useState(true);
     const [selectedUser, setSelectedUser] = useState<string | null>(null);
     const [newPassword, setNewPassword] = useState("");
+    const [editingRoleUserId, setEditingRoleUserId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!loading && (!user || !user.isAdmin)) {
+        if (!loading && (!user || user.role !== 'admin')) {
             router.push("/");
         }
     }, [user, loading, router]);
 
     useEffect(() => {
-        if (user?.isAdmin) {
+        if (user?.role === 'admin') {
             fetchUsers();
         }
     }, [user]);
@@ -66,6 +66,21 @@ export default function UserManagementPage() {
         }
     };
 
+    const handleUpdateRole = async (userId: string, newRole: string) => {
+        if (!confirm(`Are you sure you want to change this user's role to ${newRole}?`)) {
+            return;
+        }
+
+        try {
+            await api.put(`/admin/users/${userId}/role`, { role: newRole });
+            alert("User role updated successfully");
+            setEditingRoleUserId(null);
+            fetchUsers();
+        } catch (error: any) {
+            alert(error.response?.data?.message || "Failed to update role");
+        }
+    };
+
     const handleDeleteUser = async (userId: string, userName: string) => {
         if (!confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
             return;
@@ -84,7 +99,7 @@ export default function UserManagementPage() {
         }
     };
 
-    if (loading || !user?.isAdmin) {
+    if (loading || user?.role !== 'admin') {
         return null;
     }
 
@@ -101,7 +116,6 @@ export default function UserManagementPage() {
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">University</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -114,20 +128,54 @@ export default function UserManagementPage() {
                                             {u.name}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {u.isStudent ? "Student" : "Public"}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             {u.university}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {u.isAdmin ? (
-                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                                                    Admin
-                                                </span>
+                                            {editingRoleUserId === u._id ? (
+                                                <div className="flex items-center space-x-2">
+                                                    <select
+                                                        defaultValue={u.role}
+                                                        onChange={(e) => handleUpdateRole(u._id, e.target.value)}
+                                                        className="text-xs border rounded p-1 text-gray-800"
+                                                    >
+                                                        <option value="admin">Admin</option>
+                                                        <option value="student">Student</option>
+                                                        <option value="public">Public</option>
+                                                    </select>
+                                                    <button
+                                                        onClick={() => setEditingRoleUserId(null)}
+                                                        className="text-xs text-gray-500 hover:text-gray-700"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
                                             ) : (
-                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                    User
-                                                </span>
+                                                <div className="flex items-center space-x-2">
+                                                    {u.role === 'admin' && (
+                                                        <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                                                            🛡️ Admin
+                                                        </span>
+                                                    )}
+                                                    {u.role === 'student' && (
+                                                        <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                                            🎓 Student
+                                                        </span>
+                                                    )}
+                                                    {u.role === 'public' && (
+                                                        <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 border border-gray-200">
+                                                            👤 Public
+                                                        </span>
+                                                    )}
+                                                    {u._id !== user?._id && (
+                                                        <button
+                                                            onClick={() => setEditingRoleUserId(u._id)}
+                                                            className="text-xs text-indigo-600 hover:underline"
+                                                            title="Change Role"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
@@ -138,7 +186,7 @@ export default function UserManagementPage() {
                                                         placeholder="New password"
                                                         value={newPassword}
                                                         onChange={(e) => setNewPassword(e.target.value)}
-                                                        className="border rounded px-2 py-1 text-sm"
+                                                        className="border rounded px-2 py-1 text-sm text-gray-800"
                                                     />
                                                     <button
                                                         onClick={() => handleUpdatePassword(u._id)}
@@ -164,12 +212,14 @@ export default function UserManagementPage() {
                                                     >
                                                         Change Password
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleDeleteUser(u._id, u.name)}
-                                                        className="text-red-600 hover:text-red-900"
-                                                    >
-                                                        Delete
-                                                    </button>
+                                                    {u._id !== user?._id && (
+                                                        <button
+                                                            onClick={() => handleDeleteUser(u._id, u.name)}
+                                                            className="text-red-600 hover:text-red-900"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
                                                 </>
                                             )}
                                         </td>

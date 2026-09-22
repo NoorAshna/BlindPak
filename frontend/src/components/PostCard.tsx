@@ -18,7 +18,7 @@ export interface Post {
         _id?: string;
         name: string;
         university?: string;
-        isStudent?: boolean;
+        role?: 'admin' | 'student' | 'public';
     };
     userId?: any;
 }
@@ -42,7 +42,7 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
 
     const authorName = post.user?.name || (typeof post.userId === 'object' ? post.userId?.name : 'Unknown User');
     const university = post.user?.university || (typeof post.userId === 'object' ? post.userId?.university : undefined);
-    const isStudent = post.user?.isStudent ?? (typeof post.userId === 'object' ? post.userId?.isStudent : false);
+    const authorRole = post.user?.role ?? (typeof post.userId === 'object' ? post.userId?.role : undefined);
 
     const handleSaveEdit = async () => {
         if (!content.trim()) return;
@@ -78,9 +78,14 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
             <div className="mb-3 flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-bold text-gray-900">{authorName}</span>
-                    {isStudent && university && (
+                    {authorRole === 'student' && university && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
                             🎓 {university}
+                        </span>
+                    )}
+                    {authorRole === 'admin' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
+                            🛡️ Admin
                         </span>
                     )}
                 </div>

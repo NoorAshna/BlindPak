@@ -4,10 +4,10 @@ const { v4: uuidv4 } = require('uuid');
 
 // @desc    Create a post
 // @route   POST /api/posts
-// @access  Private (Student only)
+// @access  Private (Student and Admin)
 const createPost = async (req, res) => {
-  if (!req.user.canPost) {
-    return res.status(403).json({ message: 'Only students can post' });
+  if (req.user.role !== 'student' && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Only students and admins can post' });
   }
 
   const { content } = req.body;
@@ -46,7 +46,7 @@ const getPosts = async (req, res) => {
         {
           model: User,
           as: 'user',
-          attributes: ['_id', 'name', 'university', 'isStudent', 'isAdmin']
+          attributes: ['_id', 'name', 'university', 'role']
         },
         {
           model: Comment,
@@ -119,7 +119,7 @@ const commentPost = async (req, res) => {
     });
     
     const fullComment = await Comment.findByPk(comment._id, {
-      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'isStudent'] }]
+      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'role'] }]
     });
 
     const commentObj = fullComment.toJSON();
@@ -139,7 +139,7 @@ const getComments = async (req, res) => {
     const comments = await Comment.findAll({
       where: { postId: req.params.id },
       order: [['createdAt', 'ASC']],
-      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'isStudent'] }]
+      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'role'] }]
     });
 
     const formattedComments = comments.map(c => {
@@ -160,7 +160,7 @@ const getComments = async (req, res) => {
 const getPostById = async (req, res) => {
   try {
     const post = await Post.findByPk(req.params.id, {
-      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'isStudent'] }]
+      include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'role'] }]
     });
 
     if (post) {

@@ -8,7 +8,8 @@ const {
   getAllUsers,
   updateUserPassword,
   deleteUser,
-  getAdminStats
+  getAdminStats,
+  updateUserRole
 } = require('../controllers/adminController');
 
 // All routes require authentication and admin privileges
@@ -27,6 +28,7 @@ router.delete('/comments/:id', deleteComment);
 // User management
 router.get('/users', getAllUsers);
 router.put('/users/:id/password', updateUserPassword);
+router.put('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deleteUser);
 
 module.exports = router;

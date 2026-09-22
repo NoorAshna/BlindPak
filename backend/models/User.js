@@ -15,17 +15,13 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  isStudent: {
-    type: DataTypes.BOOLEAN,
+  role: {
+    type: DataTypes.STRING,
     allowNull: false,
-  },
-  canPost: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-  },
-  isAdmin: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
+    defaultValue: 'public',
+    validate: {
+      isIn: [['admin', 'student', 'public']],
+    },
   },
   password: {
     type: DataTypes.STRING,

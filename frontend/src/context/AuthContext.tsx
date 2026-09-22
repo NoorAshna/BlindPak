@@ -4,12 +4,12 @@ import { createContext, useState, useEffect, useContext } from 'react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
-interface User {
+export type UserRole = 'admin' | 'student' | 'public';
+
+export interface User {
     _id: string;
     name: string;
-    isStudent: boolean;
-    canPost?: boolean;
-    isAdmin: boolean;
+    role: UserRole;
     university?: string;
     token: string;
 }

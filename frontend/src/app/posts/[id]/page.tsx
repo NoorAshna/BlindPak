@@ -52,7 +52,7 @@ export default function PostDetailsPage() {
 
     const authorName = post?.user?.name || post?.userId?.name || 'Unknown User';
     const university = post?.user?.university || post?.userId?.university;
-    const isStudent = post?.user?.isStudent ?? post?.userId?.isStudent ?? false;
+    const authorRole = post?.user?.role ?? post?.userId?.role;
 
     const handleSaveEdit = async () => {
         if (!editContent.trim()) return;
@@ -102,9 +102,14 @@ export default function PostDetailsPage() {
                     <div className="mb-3 flex items-center justify-between">
                         <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-xl font-bold text-gray-900">{authorName}</h3>
-                            {isStudent && university && (
+                            {authorRole === 'student' && university && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
                                     🎓 {university}
+                                </span>
+                            )}
+                            {authorRole === 'admin' && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
+                                    🛡️ Admin
                                 </span>
                             )}
                         </div>
@@ -184,15 +189,20 @@ export default function PostDetailsPage() {
                         {comments.map((comment: any) => {
                             const commenterName = comment.userId?.name || comment.user?.name || 'Unknown User';
                             const commenterUniversity = comment.userId?.university || comment.user?.university;
-                            const commenterIsStudent = comment.userId?.isStudent || comment.user?.isStudent;
+                            const commenterRole = comment.userId?.role || comment.user?.role;
 
                             return (
                                 <div key={comment._id} className="border-b pb-2 last:border-0">
                                     <div className="flex items-center gap-2 mb-1">
                                         <p className="text-sm font-bold text-gray-900">{commenterName}</p>
-                                        {commenterIsStudent && commenterUniversity && (
+                                        {commenterRole === 'student' && commenterUniversity && (
                                             <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">
                                                 🎓 {commenterUniversity}
+                                            </span>
+                                        )}
+                                        {commenterRole === 'admin' && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 border border-purple-200">
+                                                🛡️ Admin
                                             </span>
                                         )}
                                     </div>
