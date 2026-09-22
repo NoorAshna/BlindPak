@@ -38,7 +38,7 @@ export default function Home() {
 
     return (
         <main className="min-h-screen bg-gray-100 p-4 md:p-8">
-            <div className="mx-auto max-w-2xl">
+            <div className="mx-auto max-w-3xl">
                 {user && <CreatePost onPostCreated={fetchPosts} />}
 
                 <div className="space-y-4">
