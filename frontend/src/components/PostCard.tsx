@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { Heart, MessageSquare, Pencil, Trash2, X, Check } from 'lucide-react';
+import { Heart, MessageSquare, Pencil, Trash2, X, Check, MoreHorizontal, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
@@ -45,6 +45,21 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
     const authorName = post.user?.name || (typeof post.userId === 'object' ? post.userId?.name : 'Unknown User');
     const university = post.user?.university || (typeof post.userId === 'object' ? post.userId?.university : undefined);
     const authorRole = post.user?.role ?? (typeof post.userId === 'object' ? post.userId?.role : undefined);
+    const authorInitials = authorName
+        .split(' ')
+        .map((name: string) => name[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+    const handleShare = async () => {
+        const postUrl = `${window.location.origin}/posts/${post._id}`;
+        if (navigator.share) {
+            await navigator.share({ title: post.title || authorName, url: postUrl });
+        } else {
+            await navigator.clipboard.writeText(postUrl);
+        }
+    };
 
     const handleSaveEdit = async () => {
         if (!content.trim()) return;
@@ -75,12 +90,21 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
     };
 
     return (
-        <div className="mb-4 rounded-lg bg-white p-5 shadow transition hover:shadow-md">
+        <article className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md sm:p-6">
             {/* Header: Author Name, University Tag, and Owner Actions */}
-            <div className="mb-3 flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-base font-bold text-gray-900">{authorName}</span>
-                    {authorRole === 'student' && university && (
+            <div className="mb-6 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-200 text-lg font-bold text-gray-700">
+                        {authorInitials || '?'}
+                    </div>
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span className="font-bold text-gray-950">{authorName}</span>
+                            <span className="text-gray-400">&bull;</span>
+                            <span className="text-gray-500">{formatDistanceToNow(new Date(post.createdAt))} ago</span>
+                        </div>
+                        <p className="mt-1 truncate text-sm text-gray-500">
+{authorRole === 'student' && university && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
                             🎓 {university}
                         </span>
@@ -89,7 +113,8 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                         <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
                             🛡️ Admin
                         </span>
-                    )}
+                    )}                        </p>
+                    </div>
                 </div>
 
                 {/* Edit / Delete Buttons for Owner */}
@@ -161,11 +186,11 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
             ) : (
                 <Link href={`/posts/${post._id}`} className="block">
                     {post.title && (
-                        <p className="mb-1 font-bold text-gray-900 text-base leading-snug">
+                        <p className="mb-2 text-2xl font-bold leading-tight text-gray-950">
                             {post.title}
                         </p>
                     )}
-                    <p className="mb-3 whitespace-pre-line text-gray-800 leading-relaxed">
+                    <p className="mb-4 whitespace-pre-line text-lg leading-relaxed text-gray-800">
                         {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
                     </p>
                 </Link>
@@ -173,31 +198,43 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
 
             {/* Post Image */}
             {post.imageUrl && (
-                <Link href={`/posts/${post._id}`} className="block mb-3">
+                <Link href={`/posts/${post._id}`} className="mb-4 block">
                     <img src={post.imageUrl} alt="Post" className="h-auto max-h-96 w-full object-cover rounded-md" />
                 </Link>
             )}
 
-            {/* Footer: Timestamp, Like, Comments */}
-            <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
-                <span>{formatDistanceToNow(new Date(post.createdAt))} ago</span>
-                <div className="flex items-center space-x-4">
+            {/* Footer: Engagement controls and sharing actions */}
+            <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2">
                     <button
                         onClick={() => onLike(post._id)}
-                        className="flex items-center space-x-1 hover:text-red-500 transition"
+                        className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-red-50 hover:text-red-500"
+                        aria-label="Like post"
                     >
-                        <Heart size={16} />
+                        <Heart size={19} strokeWidth={1.8} />
                         <span>{post.likes?.length || 0}</span>
                     </button>
                     <Link
                         href={`/posts/${post._id}`}
-                        className="flex items-center space-x-1 hover:text-blue-500 transition"
+                        className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-500"
+                        aria-label="View comments"
                     >
-                        <MessageSquare size={16} />
+                        <MessageSquare size={19} strokeWidth={1.8} />
                         <span>{post.commentCount || 0}</span>
                     </Link>
                 </div>
+
+                <div className="flex items-center gap-4 text-gray-900">
+                    <button
+                        onClick={handleShare}
+                        className="rounded p-1 transition hover:bg-gray-100"
+                        aria-label="Share post"
+                        title="Share post"
+                    >
+                        <Share2 size={22} strokeWidth={1.8} />
+                    </button>
+                </div>
             </div>
-        </div>
+        </article>
     );
 }
