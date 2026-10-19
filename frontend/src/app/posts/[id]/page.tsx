@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { formatDistanceToNow } from 'date-fns';
 import { useParams, useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { Pencil, Trash2, Check, X } from 'lucide-react';
+import { Pencil, Trash2, Check, X, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import MentionTextarea from '@/components/MentionTextarea';
 
 interface CommentsResponse {
     comments: any[];
@@ -23,18 +25,20 @@ export default function PostDetailsPage() {
     const [hasMoreComments, setHasMoreComments] = useState(false);
     const [loadingMoreComments, setLoadingMoreComments] = useState(false);
     const { user } = useAuth();
-    const { register, handleSubmit, reset } = useForm();
+    const { showToast } = useToast();
+    const [commentText, setCommentText] = useState('');
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState('');
+    const [editTitle, setEditTitle] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
     const fetchPost = async () => {
         try {
             const res = await api.get(`/posts/${id}`);
-            console.log(res.data);
             setPost(res.data);
             setEditContent(res.data.content);
+            setEditTitle(res.data.title || '');
         } catch (error) {
             console.error(error);
         }
@@ -55,13 +59,12 @@ export default function PostDetailsPage() {
 
     const loadMoreComments = async () => {
         if (!id || !commentsCursor || loadingMoreComments) return;
-
         setLoadingMoreComments(true);
         try {
             const res = await api.get<CommentsResponse>(`/posts/${id}/comments`, {
                 params: { limit: 10, cursor: commentsCursor }
             });
-            setComments((currentComments) => [...currentComments, ...res.data.comments]);
+            setComments((prev) => [...prev, ...res.data.comments]);
             setCommentsCursor(res.data.nextCursor);
             setHasMoreComments(res.data.hasMore);
         } catch (error) {
@@ -80,7 +83,6 @@ export default function PostDetailsPage() {
 
     const authorId = post?.user?._id || post?.userId?._id || post?.userId;
     const isOwner = Boolean(user && authorId && user._id === (typeof authorId === 'object' ? authorId._id : authorId));
-
     const authorName = post?.user?.name || post?.userId?.name || 'Unknown User';
     const university = post?.user?.university || post?.userId?.university;
     const authorRole = post?.user?.role ?? post?.userId?.role;
@@ -89,11 +91,12 @@ export default function PostDetailsPage() {
         if (!editContent.trim()) return;
         setIsSaving(true);
         try {
-            await api.put(`/posts/${id}`, { content: editContent });
+            await api.put(`/posts/${id}`, { content: editContent, title: editTitle || null });
             setIsEditing(false);
+            showToast('Post updated successfully', 'success');
             fetchPost();
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Failed to update post');
+            showToast(err.response?.data?.message || 'Failed to update post', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -104,55 +107,86 @@ export default function PostDetailsPage() {
         setIsSaving(true);
         try {
             await api.delete(`/posts/${id}`);
+            showToast('Post deleted', 'info');
             router.push('/');
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Failed to delete post');
+            showToast(err.response?.data?.message || 'Failed to delete post', 'error');
             setIsSaving(false);
         }
     };
 
-    const onCommentSubmit = async (data: any) => {
+    const onCommentSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!commentText.trim()) {
+            showToast('Comment cannot be empty', 'warning');
+            return;
+        }
         setLoading(true);
         try {
-            await api.post(`/posts/${id}/comment`, { text: data.text });
-            reset();
+            await api.post(`/posts/${id}/comment`, { text: commentText });
+            setCommentText('');
             fetchComments();
-        } catch (error) {
-            console.error(error);
+            showToast('Comment posted!', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to post comment', 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    if (!post) return <div className="p-8 text-center">Loading post...</div>;
+    if (!post) return (
+        <div className="flex min-h-screen items-center justify-center text-gray-400">
+            Loading post…
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-gray-100 p-4 md:p-8">
+        <div className="min-h-screen bg-gray-50 p-4 md:p-8">
             <div className="mx-auto max-w-2xl">
-                <div className="mb-6 rounded-lg bg-white p-6 shadow">
-                    <div className="mb-3 flex items-center justify-between">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-xl font-bold text-gray-900">{authorName}</h3>
-                            {authorRole === 'student' && university && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
-                                    🎓 {university}
-                                </span>
-                            )}
-                            {authorRole === 'admin' && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
-                                    🛡️ Admin
-                                </span>
-                            )}
+                {/* Back button */}
+                <Link href="/" className="mb-4 inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition">
+                    <ArrowLeft size={15} /> Back to feed
+                </Link>
+
+                {/* Post card */}
+                <div className="mb-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                    {/* Author info */}
+                    <div className="mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Link href={`/profile/${typeof authorId === 'object' ? authorId._id : authorId}`}>
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-base font-bold text-indigo-700 hover:ring-2 hover:ring-indigo-300 transition">
+                                    {authorName.slice(0, 2).toUpperCase()}
+                                </div>
+                            </Link>
+                            <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Link href={`/profile/${typeof authorId === 'object' ? authorId._id : authorId}`} className="font-bold text-gray-900 hover:text-indigo-600 transition">
+                                        {authorName}
+                                    </Link>
+                                    {authorRole === 'student' && university && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
+                                            🎓 {university}
+                                        </span>
+                                    )}
+                                    {authorRole === 'admin' && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
+                                            🛡️ Admin
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-400">
+                                    Posted {formatDistanceToNow(new Date(post.createdAt))} ago
+                                </p>
+                            </div>
                         </div>
 
-                        {/* Owner Controls */}
                         {isOwner && (
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1">
                                 {!isEditing && (
                                     <button
                                         onClick={() => setIsEditing(true)}
                                         disabled={isSaving}
-                                        className="flex items-center space-x-1 rounded p-1.5 text-xs text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
+                                        className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
                                         title="Edit Post"
                                     >
                                         <Pencil size={15} />
@@ -162,7 +196,7 @@ export default function PostDetailsPage() {
                                 <button
                                     onClick={handleDelete}
                                     disabled={isSaving}
-                                    className="flex items-center space-x-1 rounded p-1.5 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600 transition"
+                                    className="flex items-center gap-1 rounded-lg p-1.5 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600 transition"
                                     title="Delete Post"
                                 >
                                     <Trash2 size={15} />
@@ -175,107 +209,150 @@ export default function PostDetailsPage() {
                     {/* Content or Edit View */}
                     {isEditing ? (
                         <div className="mb-4">
+                            <input
+                                type="text"
+                                value={editTitle}
+                                onChange={(e) => setEditTitle(e.target.value)}
+                                placeholder="Post heading (optional)"
+                                className="mb-2 w-full rounded-xl border border-gray-300 p-2.5 text-base font-bold text-gray-900 focus:border-blue-500 focus:outline-none"
+                            />
                             <textarea
                                 value={editContent}
                                 onChange={(e) => setEditContent(e.target.value)}
-                                className="w-full rounded border border-gray-300 p-2 text-base text-gray-800 focus:border-blue-500 focus:outline-none"
-                                rows={4}
+                                className="w-full rounded-xl border border-gray-300 p-2.5 text-base text-gray-800 focus:border-blue-500 focus:outline-none"
+                                rows={5}
+                                autoFocus
                             />
                             <div className="mt-2 flex items-center justify-end space-x-2">
                                 <button
-                                    onClick={() => {
-                                        setEditContent(post.content);
-                                        setIsEditing(false);
-                                    }}
+                                    onClick={() => { setEditContent(post.content); setEditTitle(post.title || ''); setIsEditing(false); }}
                                     disabled={isSaving}
-                                    className="inline-flex items-center gap-1 rounded px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100"
+                                    className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100"
                                 >
                                     <X size={14} /> Cancel
                                 </button>
                                 <button
                                     onClick={handleSaveEdit}
                                     disabled={isSaving || !editContent.trim()}
-                                    className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                    className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                                 >
-                                    <Check size={14} /> {isSaving ? 'Saving...' : 'Save Changes'}
+                                    <Check size={14} /> {isSaving ? 'Saving…' : 'Save Changes'}
                                 </button>
                             </div>
                         </div>
                     ) : (
                         <>
                             {post.title && (
-                                <p className="mb-2 text-xl font-bold text-gray-900 leading-snug">{post.title}</p>
+                                <p className="mb-3 text-2xl font-bold text-gray-950 leading-snug">{post.title}</p>
                             )}
-                            <p className="mb-4 whitespace-pre-line text-lg text-gray-800 leading-relaxed">{post.content}</p>
+                            <p className="whitespace-pre-line text-lg text-gray-800 leading-relaxed">{post.content}</p>
                         </>
                     )}
-
-                    <div className="text-sm text-gray-500">
-                        Posted {formatDistanceToNow(new Date(post.createdAt))} ago
-                    </div>
                 </div>
 
-                <div className="mb-6 rounded-lg bg-white p-6 shadow">
-                    <h3 className="mb-4 text-lg text-gray-700 font-bold">Comments</h3>
+                {/* Comments section */}
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <h3 className="mb-5 text-base font-bold text-gray-900">
+                        Comments ({comments.length}{hasMoreComments ? '+' : ''})
+                    </h3>
 
+                    {/* Comment list */}
                     <div className="mb-6 space-y-4">
+                        {comments.length === 0 && (
+                            <p className="text-sm text-gray-400">No comments yet. Be the first to comment!</p>
+                        )}
+
                         {comments.map((comment: any) => {
                             const commenterName = comment.userId?.name || comment.user?.name || 'Unknown User';
                             const commenterUniversity = comment.userId?.university || comment.user?.university;
                             const commenterRole = comment.userId?.role || comment.user?.role;
+                            const commenterId = comment.userId?._id || comment.user?._id;
+
+                            // Render @mentions as links
+                            const renderCommentText = (text: string) => {
+                                const parts = text.split(/(@[A-Za-z0-9]+)/g);
+                                return parts.map((part, i) =>
+                                    part.startsWith('@') ? (
+                                        <span key={i} className="font-semibold text-indigo-600">{part}</span>
+                                    ) : (
+                                        part
+                                    )
+                                );
+                            };
 
                             return (
-                                <div key={comment._id} className="border-b pb-2 last:border-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-sm font-bold text-gray-900">{commenterName}</p>
-                                        {commenterRole === 'student' && commenterUniversity && (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">
-                                                🎓 {commenterUniversity}
+                                <div key={comment._id} className="flex gap-3">
+                                    <Link href={`/profile/${commenterId}`} className="shrink-0">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600 hover:ring-2 hover:ring-indigo-200 transition">
+                                            {commenterName.slice(0, 2).toUpperCase()}
+                                        </div>
+                                    </Link>
+                                    <div className="flex-1 rounded-xl bg-gray-50 px-4 py-3">
+                                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                                            <Link href={`/profile/${commenterId}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition">
+                                                {commenterName}
+                                            </Link>
+                                            {commenterRole === 'student' && commenterUniversity && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">
+                                                    🎓 {commenterUniversity}
+                                                </span>
+                                            )}
+                                            {commenterRole === 'admin' && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 border border-purple-200">
+                                                    🛡️ Admin
+                                                </span>
+                                            )}
+                                            <span className="ml-auto text-xs text-gray-400">
+                                                {formatDistanceToNow(new Date(comment.createdAt))} ago
                                             </span>
-                                        )}
-                                        {commenterRole === 'admin' && (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[11px] font-semibold text-purple-700 border border-purple-200">
-                                                🛡️ Admin
-                                            </span>
-                                        )}
+                                        </div>
+                                        <p className="text-sm text-gray-800 leading-relaxed">
+                                            {renderCommentText(comment.text)}
+                                        </p>
                                     </div>
-                                    <p className="text-gray-800">{comment.text}</p>
-                                    <span className="text-xs text-gray-500">
-                                        {formatDistanceToNow(new Date(comment.createdAt))} ago
-                                    </span>
                                 </div>
                             );
                         })}
-                        {comments.length === 0 && <p className="text-gray-500">No comments yet.</p>}
                     </div>
 
+                    {/* Load more comments */}
                     {hasMoreComments && (
                         <button
                             type="button"
                             onClick={loadMoreComments}
                             disabled={loadingMoreComments}
-                            className="mb-6 w-full rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            className="mb-6 w-full rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition"
                         >
-                            {loadingMoreComments ? 'Loading...' : 'Load more comments'}
+                            {loadingMoreComments ? 'Loading…' : 'Load more comments'}
                         </button>
                     )}
 
+                    {/* Comment input */}
                     {user && user.role !== 'public' && (
-                        <form onSubmit={handleSubmit(onCommentSubmit)}>
-                            <textarea
-                                {...register('text', { required: true })}
-                                placeholder="Write a comment..."
-                                className="mb-2 w-full resize-none text-gray-700 rounded border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+                        <form onSubmit={onCommentSubmit}>
+                            <MentionTextarea
+                                value={commentText}
+                                onChange={setCommentText}
                                 rows={2}
-                            />
-                            <button
-                                type="submit"
                                 disabled={loading}
-                                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                {loading ? 'Posting...' : 'Comment'}
-                            </button>
+                                className="mb-2"
+                            />
+                            <div className="flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={loading || !commentText.trim()}
+                                    className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition"
+                                >
+                                    {loading ? 'Posting…' : 'Comment'}
+                                </button>
+                            </div>
                         </form>
+                    )}
+
+                    {!user && (
+                        <p className="text-center text-sm text-gray-400">
+                            <Link href="/login" className="text-indigo-600 hover:underline">Log in</Link> to comment.
+                        </p>
                     )}
                 </div>
             </div>

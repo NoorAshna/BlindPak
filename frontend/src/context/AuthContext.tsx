@@ -11,6 +11,7 @@ export interface User {
     name: string;
     role: UserRole;
     university?: string;
+    bio?: string | null;
     token: string;
 }
 
@@ -18,6 +19,7 @@ interface AuthContextType {
     user: User | null;
     login: (token: string, userData: any) => void;
     logout: () => void;
+    refreshUser: () => Promise<void>;
     loading: boolean;
 }
 
@@ -40,8 +42,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = (token: string, userData: any) => {
         localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(userData));
-        setUser(userData);
+        localStorage.setItem('user', JSON.stringify({ ...userData, token }));
+        setUser({ ...userData, token });
         router.push('/');
     };
 
@@ -49,11 +51,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
-        // router.push('/login');
+    };
+
+    // Re-fetch the user from the server to keep data fresh (e.g. after bio update)
+    const refreshUser = async () => {
+        try {
+            const res = await api.get('/auth/me');
+            const token = localStorage.getItem('token') || '';
+            const updated = { ...res.data, token };
+            localStorage.setItem('user', JSON.stringify(updated));
+            setUser(updated);
+        } catch {
+            // If token expired etc., logout
+            logout();
+        }
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, logout, refreshUser, loading }}>
             {children}
         </AuthContext.Provider>
     );

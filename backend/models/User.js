@@ -31,6 +31,12 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     defaultValue: 'General',
   },
+  // Short bio shown on profile page (max 300 chars)
+  bio: {
+    type: DataTypes.STRING(300),
+    allowNull: true,
+    defaultValue: null,
+  },
   createdAt: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,

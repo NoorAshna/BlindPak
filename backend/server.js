@@ -22,9 +22,15 @@ connectDB();
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/posts', require('./routes/postRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 
 app.get('/', (req, res) => {
-  res.send('College Blind App API is running');
+  res.send('BlindPak API is running');
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
 });
 
 const PORT = process.env.PORT || 5000;

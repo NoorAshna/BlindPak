@@ -1,10 +1,47 @@
-const { Post, Comment, User } = require('../models');
+const { Post, Comment, User, Notification } = require('../models');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 
+// ── Helper: Parse @mentions from text and create notifications ────────────────
+async function createMentionNotifications({ text, actorId, postId, commentId }) {
+  // Extract unique @username mentions  e.g. @BraveTiger123
+  const mentionRegex = /@([A-Za-z0-9]+)/g;
+  const matches = [...text.matchAll(mentionRegex)];
+  if (!matches.length) return;
+
+  const mentionedNames = [...new Set(matches.map((m) => m[1]))];
+
+  // Find matching users by name (case-insensitive)
+  const mentionedUsers = await User.findAll({
+    where: {
+      name: { [Op.iLike]: { [Op.any]: mentionedNames } },
+      _id: { [Op.ne]: actorId }, // don't notify yourself
+    },
+    attributes: ['_id', 'name'],
+  });
+
+  const actor = await User.findByPk(actorId, { attributes: ['name'] });
+
+  const notifications = mentionedUsers.map((u) => ({
+    _id: uuidv4(),
+    recipientId: u._id,
+    actorId,
+    type: 'mention',
+    postId,
+    commentId,
+    message: `${actor?.name || 'Someone'} mentioned you in a comment`,
+  }));
+
+  if (notifications.length) {
+    await Notification.bulkCreate(notifications, { ignoreDuplicates: true });
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
 // @desc    Create a post
 // @route   POST /api/posts
 // @access  Private (Student and Admin)
+// ────────────────────────────────────────────────────────────────────────────────
 const createPost = async (req, res) => {
   if (req.user.role !== 'student' && req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Only students and admins can post' });
@@ -12,24 +49,30 @@ const createPost = async (req, res) => {
 
   const { content, title } = req.body;
 
+  if (!content || !content.trim()) {
+    return res.status(400).json({ message: 'Post content is required' });
+  }
+
   try {
     const post = await Post.create({
       _id: uuidv4(),
       userId: req.user._id,
       title: title || null,
       content,
-      likes: []
+      likes: [],
     });
 
-    res.status(201).json(post);
+    res.status(201).json({ ...post.toJSON(), message: 'Post created successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Get all posts
+// ────────────────────────────────────────────────────────────────────────────────
+// @desc    Get all posts (cursor-paginated)
 // @route   GET /api/posts
 // @access  Public
+// ────────────────────────────────────────────────────────────────────────────────
 const getPosts = async (req, res) => {
   try {
     const requestedLimit = Number.parseInt(req.query.limit, 10);
@@ -99,9 +142,11 @@ const getPosts = async (req, res) => {
   }
 };
 
-// @desc    Like a post
+// ────────────────────────────────────────────────────────────────────────────────
+// @desc    Like / unlike a post (toggle)
 // @route   POST /api/posts/:id/like
 // @access  Private
+// ────────────────────────────────────────────────────────────────────────────────
 const likePost = async (req, res) => {
   if (req.user.role !== 'student' && req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Only students and admins can like posts' });
@@ -120,6 +165,22 @@ const likePost = async (req, res) => {
       likes = likes.filter((id) => id !== req.user._id);
     } else {
       likes.push(req.user._id);
+
+      // Notify post owner (don't block)
+      if (post.userId !== req.user._id) {
+        try {
+          const actor = await User.findByPk(req.user._id, { attributes: ['name'] });
+          await Notification.create({
+            _id: uuidv4(),
+            recipientId: post.userId,
+            actorId: req.user._id,
+            type: 'like',
+            postId: post._id,
+            commentId: null,
+            message: `${actor?.name || 'Someone'} liked your post`,
+          });
+        } catch (_) { /* non-critical */ }
+      }
     }
 
     post.likes = likes;
@@ -130,14 +191,20 @@ const likePost = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────────────────────────────────────
 // @desc    Comment on a post
 // @route   POST /api/posts/:id/comment
 // @access  Private
+// ────────────────────────────────────────────────────────────────────────────────
 const commentPost = async (req, res) => {
   const { text } = req.body;
 
   if (req.user.role !== 'student' && req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Only students and admins can comment on posts' });
+  }
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ message: 'Comment text is required' });
   }
 
   try {
@@ -151,9 +218,9 @@ const commentPost = async (req, res) => {
       _id: uuidv4(),
       postId: req.params.id,
       userId: req.user._id,
-      text
+      text,
     });
-    
+
     const fullComment = await Comment.findByPk(comment._id, {
       include: [{ model: User, as: 'user', attributes: ['_id', 'name', 'university', 'role'] }]
     });
@@ -161,15 +228,42 @@ const commentPost = async (req, res) => {
     const commentObj = fullComment.toJSON();
     commentObj.userId = commentObj.user;
 
+    // Notify post owner about new comment (if not self)
+    if (post.userId !== req.user._id) {
+      try {
+        await Notification.create({
+          _id: uuidv4(),
+          recipientId: post.userId,
+          actorId: req.user._id,
+          type: 'comment',
+          postId: post._id,
+          commentId: comment._id,
+          message: `${req.user.name} commented on your post`,
+        });
+      } catch (_) { /* non-critical */ }
+    }
+
+    // Parse @mentions and create mention notifications
+    try {
+      await createMentionNotifications({
+        text,
+        actorId: req.user._id,
+        postId: post._id,
+        commentId: comment._id,
+      });
+    } catch (_) { /* non-critical */ }
+
     res.status(201).json(commentObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Get comments for a post
+// ────────────────────────────────────────────────────────────────────────────────
+// @desc    Get comments for a post (cursor-paginated)
 // @route   GET /api/posts/:id/comments
 // @access  Public
+// ────────────────────────────────────────────────────────────────────────────────
 const getComments = async (req, res) => {
   try {
     const requestedLimit = Number.parseInt(req.query.limit, 10);
@@ -224,9 +318,11 @@ const getComments = async (req, res) => {
   }
 };
 
+// ────────────────────────────────────────────────────────────────────────────────
 // @desc    Get post by ID
 // @route   GET /api/posts/:id
 // @access  Public
+// ────────────────────────────────────────────────────────────────────────────────
 const getPostById = async (req, res) => {
   try {
     const post = await Post.findByPk(req.params.id, {
@@ -236,7 +332,6 @@ const getPostById = async (req, res) => {
     if (post) {
       const postObj = post.toJSON();
       postObj.userId = postObj.user;
-      console.log("console from backend", postObj);
       res.json(postObj);
     } else {
       res.status(404).json({ message: 'Post not found' });
@@ -246,9 +341,11 @@ const getPostById = async (req, res) => {
   }
 };
 
-// @desc    Update own post (Student only)
+// ────────────────────────────────────────────────────────────────────────────────
+// @desc    Update own post
 // @route   PUT /api/posts/:id
 // @access  Private (owner only)
+// ────────────────────────────────────────────────────────────────────────────────
 const updatePost = async (req, res) => {
   const { content, title } = req.body;
 
@@ -267,15 +364,17 @@ const updatePost = async (req, res) => {
     post.content = content ?? post.content;
     await post.save();
 
-    res.json(post);
+    res.json({ ...post.toJSON(), message: 'Post updated successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Delete own post (Student only)
+// ────────────────────────────────────────────────────────────────────────────────
+// @desc    Delete own post
 // @route   DELETE /api/posts/:id
 // @access  Private (owner only)
+// ────────────────────────────────────────────────────────────────────────────────
 const deleteOwnPost = async (req, res) => {
   try {
     const post = await Post.findByPk(req.params.id);
@@ -288,7 +387,6 @@ const deleteOwnPost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorised to delete this post' });
     }
 
-    // Delete associated comments then the post
     await Comment.destroy({ where: { postId: post._id } });
     await post.destroy();
 

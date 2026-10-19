@@ -258,10 +258,26 @@ const resetPassword = async (req, res) => {
   }
 };
 
+// @desc    Get current logged-in user
+// @route   GET /api/auth/me
+// @access  Private
+const getMe = async (req, res) => {
+  try {
+    const user = await require('../models/User').findByPk(req.user._id, {
+      attributes: ['_id', 'name', 'role', 'university', 'bio', 'createdAt'],
+    });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   initiateRegistration,
   verifyRegistration,
   loginUser,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  getMe,
 };

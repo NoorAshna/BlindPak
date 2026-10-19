@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { Heart, MessageSquare, Pencil, Trash2, X, Check, MoreHorizontal, Share2 } from 'lucide-react';
+import { Heart, MessageSquare, Pencil, Trash2, X, Check, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import api from '@/lib/api';
 
 export interface Post {
@@ -32,11 +33,13 @@ interface PostCardProps {
 
 export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }: PostCardProps) {
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [isEditing, setIsEditing] = useState(false);
     const [content, setContent] = useState(post.content);
     const [editTitle, setEditTitle] = useState(post.title || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState('');
+    const [liked, setLiked] = useState(user ? post.likes?.includes(user._id) : false);
+    const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
 
     const authorId = post.user?._id || (typeof post.userId === 'object' ? post.userId?._id : post.userId);
     const isOwner = Boolean(user && authorId && user._id === authorId);
@@ -53,23 +56,26 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
 
     const handleShare = async () => {
         const postUrl = `${window.location.origin}/posts/${post._id}`;
-        if (navigator.share) {
-            await navigator.share({ title: post.title || authorName, url: postUrl });
-        } else {
-            await navigator.clipboard.writeText(postUrl);
-        }
+        try {
+            if (navigator.share) {
+                await navigator.share({ title: post.title || authorName, url: postUrl });
+            } else {
+                await navigator.clipboard.writeText(postUrl);
+                showToast('Post link copied to clipboard!', 'success');
+            }
+        } catch (_) { /* user cancelled share */ }
     };
 
     const handleSaveEdit = async () => {
         if (!content.trim()) return;
         setIsSubmitting(true);
-        setError('');
         try {
             await api.put(`/posts/${post._id}`, { content, title: editTitle || null });
             setIsEditing(false);
+            showToast('Post updated successfully', 'success');
             if (onPostUpdated) onPostUpdated();
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to update post');
+            showToast(err.response?.data?.message || 'Failed to update post', 'error');
         } finally {
             setIsSubmitting(false);
         }
@@ -80,50 +86,72 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
         setIsSubmitting(true);
         try {
             await api.delete(`/posts/${post._id}`);
+            showToast('Post deleted', 'info');
             if (onPostDeleted) onPostDeleted();
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Failed to delete post');
-        } finally {
+            showToast(err.response?.data?.message || 'Failed to delete post', 'error');
             setIsSubmitting(false);
+        }
+    };
+
+    const handleLike = async () => {
+        if (!user || (user.role !== 'student' && user.role !== 'admin')) return;
+        // Optimistic update
+        const wasLiked = liked;
+        setLiked(!wasLiked);
+        setLikeCount((c) => c + (wasLiked ? -1 : 1));
+        try {
+            await onLike(post._id);
+        } catch {
+            // Revert on error
+            setLiked(wasLiked);
+            setLikeCount((c) => c + (wasLiked ? 1 : -1));
         }
     };
 
     return (
         <article className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md sm:p-6">
-            {/* Header: Author Name, University Tag, and Owner Actions */}
-            <div className="mb-6 flex items-start justify-between gap-3">
+            {/* Header */}
+            <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-200 text-lg font-bold text-gray-700">
-                        {authorInitials || '?'}
-                    </div>
+                    {/* Avatar — links to profile */}
+                    <Link href={`/profile/${authorId}`} className="block shrink-0">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-base font-bold text-indigo-700 hover:ring-2 hover:ring-indigo-300 transition">
+                            {authorInitials || '?'}
+                        </div>
+                    </Link>
+
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 text-sm">
-                            <span className="font-bold text-gray-950">{authorName}</span>
-                            <span className="text-gray-400">&bull;</span>
+                            <Link href={`/profile/${authorId}`} className="font-bold text-gray-950 hover:text-indigo-600 transition">
+                                {authorName}
+                            </Link>
+                            <span className="text-gray-400">•</span>
                             <span className="text-gray-500">{formatDistanceToNow(new Date(post.createdAt))} ago</span>
                         </div>
-                        <p className="mt-1 truncate text-sm text-gray-500">
-{authorRole === 'student' && university && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
-                            🎓 {university}
-                        </span>
-                    )}
-                    {authorRole === 'admin' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
-                            🛡️ Admin
-                        </span>
-                    )}                        </p>
+                        <div className="mt-0.5 flex flex-wrap gap-1.5">
+                            {authorRole === 'student' && university && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
+                                    🎓 {university}
+                                </span>
+                            )}
+                            {authorRole === 'admin' && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
+                                    🛡️ Admin
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Edit / Delete Buttons for Owner */}
+                {/* Owner controls */}
                 {isOwner && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1">
                         {!isEditing && (
                             <button
                                 onClick={() => setIsEditing(true)}
                                 disabled={isSubmitting}
-                                className="flex items-center space-x-1 rounded p-1.5 text-xs text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
+                                className="flex items-center space-x-1 rounded-lg p-1.5 text-xs text-gray-500 hover:bg-gray-100 hover:text-blue-600 transition"
                                 title="Edit Post"
                             >
                                 <Pencil size={15} />
@@ -133,7 +161,7 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                         <button
                             onClick={handleDelete}
                             disabled={isSubmitting}
-                            className="flex items-center space-x-1 rounded p-1.5 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600 transition"
+                            className="flex items-center space-x-1 rounded-lg p-1.5 text-xs text-gray-500 hover:bg-red-50 hover:text-red-600 transition"
                             title="Delete Post"
                         >
                             <Trash2 size={15} />
@@ -143,7 +171,7 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                 )}
             </div>
 
-            {/* Post Content or Edit Form */}
+            {/* Post content or edit form */}
             {isEditing ? (
                 <div className="mb-3">
                     <input
@@ -151,16 +179,15 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
                         placeholder="Post heading (optional)"
-                        className="mb-2 w-full rounded border border-gray-300 p-2 text-sm font-bold text-gray-900 focus:border-blue-500 focus:outline-none"
+                        className="mb-2 w-full rounded-lg border border-gray-300 p-2 text-sm font-bold text-gray-900 focus:border-blue-500 focus:outline-none"
                     />
                     <textarea
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        className="w-full rounded border border-gray-300 p-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 p-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none"
                         rows={3}
                         autoFocus
                     />
-                    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
                     <div className="mt-2 flex items-center justify-end space-x-2">
                         <button
                             onClick={() => {
@@ -169,73 +196,71 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                                 setIsEditing(false);
                             }}
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-1 rounded px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 transition"
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 transition"
                         >
                             <X size={14} /> Cancel
                         </button>
                         <button
                             onClick={handleSaveEdit}
                             disabled={isSubmitting || !content.trim()}
-                            className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition"
                         >
-                            <Check size={14} /> {isSubmitting ? 'Saving...' : 'Save'}
+                            <Check size={14} /> {isSubmitting ? 'Saving…' : 'Save'}
                         </button>
                     </div>
                 </div>
             ) : (
                 <Link href={`/posts/${post._id}`} className="block">
                     {post.title && (
-                        <p className="mb-2 text-2xl font-bold leading-tight text-gray-950">
+                        <p className="mb-2 text-xl font-bold leading-tight text-gray-950">
                             {post.title}
                         </p>
                     )}
-                    <p className="mb-4 whitespace-pre-line text-lg leading-relaxed text-gray-800">
-                        {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
+                    <p className="mb-4 whitespace-pre-line text-base leading-relaxed text-gray-800">
+                        {post.content.length > 240 ? `${post.content.slice(0, 240)}…` : post.content}
                     </p>
                 </Link>
             )}
 
-            {/* Footer: Engagement controls and sharing actions */}
+            {/* Footer */}
             <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2">
+                    {/* Like button */}
                     {user?.role === 'student' || user?.role === 'admin' ? (
                         <button
-                            onClick={() => onLike(post._id)}
-                            className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-red-50 hover:text-red-500"
-                            aria-label="Like post"
+                            onClick={handleLike}
+                            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${liked ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-700 hover:bg-red-50 hover:text-red-500'}`}
+                            aria-label={liked ? 'Unlike post' : 'Like post'}
                         >
-                            <Heart size={19} strokeWidth={1.8} />
-                            <span>{post.likes?.length || 0}</span>
+                            <Heart size={18} strokeWidth={1.8} fill={liked ? 'currentColor' : 'none'} />
+                            <span>{likeCount}</span>
                         </button>
                     ) : (
-                        <div
-                            className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-500"
-                            aria-label={`${post.likes?.length || 0} likes`}
-                        >
-                            <Heart size={19} strokeWidth={1.8} />
-                            <span>{post.likes?.length || 0}</span>
+                        <div className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-500">
+                            <Heart size={18} strokeWidth={1.8} />
+                            <span>{likeCount}</span>
                         </div>
                     )}
+
+                    {/* Comment count */}
                     <Link
                         href={`/posts/${post._id}`}
-                        className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-500"
+                        className="flex items-center gap-2 rounded-full bg-gray-50 px-4 py-2 text-sm text-gray-700 transition hover:bg-blue-50 hover:text-blue-600"
                         aria-label="View comments"
                     >
-                        <MessageSquare size={19} strokeWidth={1.8} />
+                        <MessageSquare size={18} strokeWidth={1.8} />
                         <span>{post.commentCount || 0}</span>
                     </Link>
                 </div>
 
-                <div className="flex items-center gap-4 text-gray-900">
-                    <button
-                        onClick={handleShare}
-                        className="rounded p-1 transition hover:bg-gray-100"
-                        aria-label="Share post"
-                        title="Share post"
-                    >
-                        <Share2 size={22} strokeWidth={1.8} />
-                    </button>
-                </div>
+                <button
+                    onClick={handleShare}
+                    className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                    aria-label="Share post"
+                    title="Share post"
+                >
+                    <Share2 size={20} strokeWidth={1.8} />
+                </button>
             </div>
         </article>
     );
