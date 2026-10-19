@@ -1,6 +1,5 @@
 const { Post, Comment, User } = require('../models');
 const { Op } = require('sequelize');
-const { uploadImage } = require('../utils/cloudinary');
 const { v4: uuidv4 } = require('uuid');
 
 // @desc    Create a post
@@ -12,23 +11,13 @@ const createPost = async (req, res) => {
   }
 
   const { content, title } = req.body;
-  let imageUrl = null;
-  let imageId = null;
- 
-  try {
-    if (req.file) {
-      const result = await uploadImage(req.file.path);
-      imageUrl = result.secure_url;
-      imageId = result.public_id;
-    }
 
+  try {
     const post = await Post.create({
       _id: uuidv4(),
       userId: req.user._id,
       title: title || null,
       content,
-      imageUrl,
-      imageId,
       likes: []
     });
 
@@ -274,25 +263,8 @@ const updatePost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorised to edit this post' });
     }
 
-    let imageUrl = post.imageUrl;
-    let imageId = post.imageId;
-
-    if (req.file) {
-      // Delete old image from Cloudinary if it exists
-      if (post.imageId) {
-        const { deleteImage } = require('../utils/cloudinary');
-        await deleteImage(post.imageId);
-      }
-      const { uploadImage } = require('../utils/cloudinary');
-      const result = await uploadImage(req.file.path);
-      imageUrl = result.secure_url;
-      imageId = result.public_id;
-    }
-
     post.title = title !== undefined ? (title || null) : post.title;
     post.content = content ?? post.content;
-    post.imageUrl = imageUrl;
-    post.imageId = imageId;
     await post.save();
 
     res.json(post);
@@ -316,12 +288,6 @@ const deleteOwnPost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorised to delete this post' });
     }
 
-    // Delete image from Cloudinary if exists
-    if (post.imageId) {
-      const { deleteImage } = require('../utils/cloudinary');
-      await deleteImage(post.imageId);
-    }
-
     // Delete associated comments then the post
     await Comment.destroy({ where: { postId: post._id } });
     await post.destroy();
@@ -342,4 +308,3 @@ module.exports = {
   updatePost,
   deleteOwnPost
 };
-

@@ -1,6 +1,5 @@
 const { Post, Comment, User } = require('../models');
 const bcrypt = require('bcryptjs');
-const { deleteImage } = require('../utils/cloudinary');
 
 // @desc    Delete a post (Admin only)
 // @route   DELETE /api/admin/posts/:id
@@ -11,11 +10,6 @@ const deletePost = async (req, res) => {
 
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
-    }
-
-    // Delete image from Cloudinary if exists
-    if (post.imageId) {
-      await deleteImage(post.imageId);
     }
 
     // Delete associated comments
@@ -151,16 +145,6 @@ const deleteUser = async (req, res) => {
     const cascadeDelete = req.query.cascade === 'true';
 
     if (cascadeDelete) {
-      // Get all user's posts to delete associated images
-      const userPosts = await Post.findAll({ where: { userId: req.params.id } });
-      
-      // Delete images from Cloudinary
-      for (const post of userPosts) {
-        if (post.imageId) {
-          await deleteImage(post.imageId);
-        }
-      }
-
       // Delete all user's posts
       await Post.destroy({ where: { userId: req.params.id } });
 

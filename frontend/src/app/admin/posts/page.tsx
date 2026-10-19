@@ -10,7 +10,6 @@ interface Post {
     _id: string;
     title?: string | null;
     content: string;
-    imageUrl: string | null;
     user: {
         _id: string;
         name: string;
@@ -244,13 +243,6 @@ export default function PostManagementPage() {
                                         <p className="text-gray-700 mb-3">
                                             {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
                                         </p>
-                                        {post.imageUrl && (
-                                            <img
-                                                src={post.imageUrl}
-                                                alt="Post"
-                                                className="rounded-lg max-w-md mb-3"
-                                            />
-                                        )}
                                         <div className="text-sm text-gray-500">
                                             {post.commentCount} comment{post.commentCount !== 1 ? "s" : ""}
                                         </div>

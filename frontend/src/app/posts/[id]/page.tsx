@@ -210,9 +210,6 @@ export default function PostDetailsPage() {
                         </>
                     )}
 
-                    {post.imageUrl && (
-                        <img src={post.imageUrl} alt="Post" className="mb-4 h-auto w-full rounded" />
-                    )}
                     <div className="text-sm text-gray-500">
                         Posted {formatDistanceToNow(new Date(post.createdAt))} ago
                     </div>

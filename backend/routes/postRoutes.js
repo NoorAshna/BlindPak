@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const { protect } = require('../middleware/authMiddleware');
 const {
   createPost,
@@ -13,15 +12,14 @@ const {
   deleteOwnPost
 } = require('../controllers/postController');
 
-const upload = multer({ dest: 'uploads/' });
 
 router.route('/')
   .get(getPosts)
-  .post(protect, upload.single('image'), createPost);
+  .post(protect, createPost);
 
 router.route('/:id')
   .get(getPostById)
-  .put(protect, upload.single('image'), updatePost)
+  .put(protect, updatePost)
   .delete(protect, deleteOwnPost);
 router.route('/:id/like').post(protect, likePost);
 router.route('/:id/comment').post(protect, commentPost);

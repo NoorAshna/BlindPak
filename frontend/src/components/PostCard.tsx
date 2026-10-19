@@ -11,7 +11,6 @@ export interface Post {
     _id: string;
     title?: string | null;
     content: string;
-    imageUrl?: string | null;
     likes: string[];
     createdAt: string;
     commentCount: number;
@@ -193,13 +192,6 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
                     <p className="mb-4 whitespace-pre-line text-lg leading-relaxed text-gray-800">
                         {post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content}
                     </p>
-                </Link>
-            )}
-
-            {/* Post Image */}
-            {post.imageUrl && (
-                <Link href={`/posts/${post._id}`} className="mb-4 block">
-                    <img src={post.imageUrl} alt="Post" className="h-auto max-h-96 w-full object-cover rounded-md" />
                 </Link>
             )}
 

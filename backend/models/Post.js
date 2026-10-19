@@ -20,14 +20,6 @@ const Post = sequelize.define('Post', {
     type: DataTypes.TEXT,
     allowNull: false,
   },
-  imageUrl: {
-    type: DataTypes.STRING,
-    defaultValue: null,
-  },
-  imageId: {
-    type: DataTypes.STRING,
-    defaultValue: null,
-  },
   likes: {
     type: DataTypes.JSONB,
     defaultValue: [],

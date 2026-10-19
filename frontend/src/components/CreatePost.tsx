@@ -4,33 +4,19 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Image as ImageIcon } from 'lucide-react';
 
 export default function CreatePost({ onPostCreated }: { onPostCreated: () => void }) {
     const { register, handleSubmit, reset } = useForm();
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [image, setImage] = useState<File | null>(null);
 
     if (user?.role !== 'student' && user?.role !== 'admin') return null;
 
     const onSubmit = async (data: any) => {
         setLoading(true);
-        const formData = new FormData();
-        formData.append('content', data.content);
-        if (data.title) {
-            formData.append('title', data.title);
-        }
-        if (image) {
-            formData.append('image', image);
-        }
-
         try {
-            await api.post('/posts', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            await api.post('/posts', { content: data.content, title: data.title || null });
             reset();
-            setImage(null);
             onPostCreated();
         } catch (error) {
             console.error(error);
@@ -54,17 +40,7 @@ export default function CreatePost({ onPostCreated }: { onPostCreated: () => voi
                     className="mb-2 w-full resize-none text-gray-700 rounded border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
                     rows={3}
                 />
-                <div className="flex items-center justify-between">
-                    <label className="cursor-pointer text-gray-500 hover:text-blue-500">
-                        <ImageIcon size={20} />
-                        <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => setImage(e.target.files?.[0] || null)}
-                        />
-                    </label>
-                    {image && <span className="text-xs text-gray-500">{image.name}</span>}
+                <div className="flex justify-end">
                     <button
                         type="submit"
                         disabled={loading}
