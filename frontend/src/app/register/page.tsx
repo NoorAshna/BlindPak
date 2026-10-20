@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { emailValidation, passwordValidation } from '@/lib/validation';
 
@@ -19,20 +20,25 @@ export default function RegisterPage() {
         setError('');
         try {
             if (data.password !== data.confirmPassword) {
-                setError("Passwords do not match");
+                const msg = "Passwords do not match";
+                setError(msg);
+                toast.error(msg);
                 setLoading(false);
                 return;
             }
 
-            await api.post('/auth/register/initiate', {
+            const res = await api.post('/auth/register/initiate', {
                 email: data.email,
                 password: data.password,
                 role
             });
 
+            toast.success(res.data?.message || 'Verification code sent to your email!');
             router.push(`/verify?email=${encodeURIComponent(data.email)}`);
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Registration failed');
+            const msg = err.response?.data?.message || 'Registration failed';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

@@ -77,7 +77,22 @@ const createPost = async (req, res) => {
       likes: [],
     });
 
-    res.status(201).json({ ...post.toJSON(), message: 'Post created successfully' });
+    // Fetch the newly created post with associated user attributes for full frontend compatibility
+    const fullPost = await Post.findByPk(post._id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['_id', 'name', 'university', 'role'],
+        },
+      ],
+    });
+
+    const postObj = fullPost.toJSON();
+    postObj.commentCount = 0;
+    postObj.userId = postObj.user;
+
+    res.status(201).json({ ...postObj, message: 'Post created successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

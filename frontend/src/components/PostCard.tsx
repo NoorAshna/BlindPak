@@ -26,8 +26,8 @@ export interface Post {
 
 interface PostCardProps {
     post: Post;
-    onLike: (id: string) => void;
-    onPostUpdated?: () => void;
+    onLike?: (id: string) => void;
+    onPostUpdated?: (updatedData?: Partial<Post>) => void;
     onPostDeleted?: () => void;
 }
 
@@ -76,10 +76,10 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
         if (!content.trim()) return;
         setIsSubmitting(true);
         try {
-            await api.put(`/posts/${post._id}`, { content, title: editTitle || null });
+            const res = await api.put(`/posts/${post._id}`, { content, title: editTitle || null });
             setIsEditing(false);
-            showToast('Post updated successfully', 'success');
-            if (onPostUpdated) onPostUpdated();
+            showToast(res.data?.message || 'Post updated successfully', 'success');
+            if (onPostUpdated) onPostUpdated(res.data);
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to update post', 'error');
         } finally {
@@ -91,8 +91,8 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
         if (!window.confirm('Are you sure you want to delete this post?')) return;
         setIsSubmitting(true);
         try {
-            await api.delete(`/posts/${post._id}`);
-            showToast('Post deleted', 'info');
+            const res = await api.delete(`/posts/${post._id}`);
+            showToast(res.data?.message || 'Post deleted', 'info');
             if (onPostDeleted) onPostDeleted();
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to delete post', 'error');
@@ -101,13 +101,20 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
     };
 
     const handleLike = async () => {
-        if (!user || (user.role !== 'student' && user.role !== 'admin')) return;
+        if (!user || (user.role !== 'student' && user.role !== 'admin')) {
+            showToast('Please log in with a student or admin account to like posts', 'info');
+            return;
+        }
         // Optimistic update
         const wasLiked = liked;
         setLiked(!wasLiked);
         setLikeCount((c) => c + (wasLiked ? -1 : 1));
         try {
-            await onLike(post._id);
+            if (onLike) {
+                await onLike(post._id);
+            } else {
+                await api.post(`/posts/${post._id}/like`);
+            }
         } catch {
             // Revert on error
             setLiked(wasLiked);

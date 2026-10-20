@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { emailValidation } from '@/lib/validation';
@@ -20,9 +21,12 @@ export default function LoginPage() {
         setError('');
         try {
             const res = await api.post('/auth/login', data);
+            toast.success(res.data?.message || 'Logged in successfully!');
             login(res.data.token, res.data);
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Invalid email or password');
+            const msg = err.response?.data?.message || 'Invalid email or password';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

@@ -160,12 +160,34 @@ export default function Home() {
         return () => observer.disconnect();
     }, [loadMorePosts, hasMore, loadingMore, loadingPosts]);
 
-    const handleLike = async (id: string) => {
-        try {
-            await api.post(`/posts/${id}/like`);
-            // Optimistic UI is handled in PostCard; socket event also ensures cross-tab sync
-        } catch (error: any) {
-            showToast(error.response?.data?.message || 'Failed to like post', 'error');
+    const handlePostCreated = (newPost?: Post) => {
+        if (newPost && newPost._id) {
+            setPosts((prevPosts) => [newPost, ...prevPosts]);
+            // Subscribe to real-time events for the new post
+            joinedPostIdsRef.current.add(newPost._id);
+            joinPostRooms(newPost._id);
+        } else {
+            fetchPosts();
+        }
+    };
+
+    const handlePostUpdated = (updatedPostId?: string, updatedData?: Partial<Post>) => {
+        if (updatedPostId && updatedData) {
+            setPosts((prev) =>
+                prev.map((p) => (p._id === updatedPostId ? { ...p, ...updatedData } : p))
+            );
+        } else {
+            fetchPosts();
+        }
+    };
+
+    const handlePostDeleted = (deletedPostId?: string) => {
+        if (deletedPostId) {
+            setPosts((prev) => prev.filter((p) => p._id !== deletedPostId));
+            joinedPostIdsRef.current.delete(deletedPostId);
+            leavePostRooms(deletedPostId);
+        } else {
+            fetchPosts();
         }
     };
 
@@ -194,7 +216,7 @@ export default function Home() {
                     </div>
                 )}
 
-                {user && <CreatePost onPostCreated={fetchPosts} />}
+                {user && <CreatePost onPostCreated={handlePostCreated} />}
 
                 {loadingPosts ? (
                     <div className="space-y-4">
@@ -213,9 +235,8 @@ export default function Home() {
                                 <PostCard
                                     key={post._id}
                                     post={post}
-                                    onLike={handleLike}
-                                    onPostUpdated={fetchPosts}
-                                    onPostDeleted={fetchPosts}
+                                    onPostUpdated={(data) => handlePostUpdated(post._id, data)}
+                                    onPostDeleted={() => handlePostDeleted(post._id)}
                                 />
                             ))
                         )}

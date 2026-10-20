@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { toast } from "sonner";
 
 interface User {
     _id: string;
@@ -48,7 +49,7 @@ export default function UserManagementPage() {
 
     const handleUpdatePassword = async (userId: string) => {
         if (!newPassword) {
-            alert("Please enter a new password");
+            toast.warning("Please enter a new password");
             return;
         }
 
@@ -57,12 +58,12 @@ export default function UserManagementPage() {
         }
 
         try {
-            await api.put(`/admin/users/${userId}/password`, { newPassword });
-            alert("Password updated successfully");
+            const res = await api.put(`/admin/users/${userId}/password`, { newPassword });
+            toast.success(res.data?.message || "Password updated successfully");
             setNewPassword("");
             setSelectedUser(null);
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to update password");
+            toast.error(error.response?.data?.message || "Failed to update password");
         }
     };
 
@@ -72,12 +73,12 @@ export default function UserManagementPage() {
         }
 
         try {
-            await api.put(`/admin/users/${userId}/role`, { role: newRole });
-            alert("User role updated successfully");
+            const res = await api.put(`/admin/users/${userId}/role`, { role: newRole });
+            toast.success(res.data?.message || "User role updated successfully");
             setEditingRoleUserId(null);
             fetchUsers();
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to update role");
+            toast.error(error.response?.data?.message || "Failed to update role");
         }
     };
 
@@ -91,11 +92,11 @@ export default function UserManagementPage() {
         );
 
         try {
-            await api.delete(`/admin/users/${userId}?cascade=${cascadeDelete}`);
-            alert("User deleted successfully");
+            const res = await api.delete(`/admin/users/${userId}?cascade=${cascadeDelete}`);
+            toast.success(res.data?.message || "User deleted successfully");
             fetchUsers();
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to delete user");
+            toast.error(error.response?.data?.message || "Failed to delete user");
         }
     };
 

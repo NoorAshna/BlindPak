@@ -4,18 +4,23 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/context/ToastContext';
+import { toast } from 'sonner';
 import { ImageIcon, Send } from 'lucide-react';
+
+import type { Post } from '@/components/PostCard';
 
 interface FormData {
   title: string;
   content: string;
 }
 
-export default function CreatePost({ onPostCreated }: { onPostCreated: () => void }) {
+interface CreatePostProps {
+  onPostCreated: (newPost?: Post) => void;
+}
+
+export default function CreatePost({ onPostCreated }: CreatePostProps) {
   const { register, handleSubmit, reset, watch } = useForm<FormData>();
   const { user } = useAuth();
-  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -25,19 +30,19 @@ export default function CreatePost({ onPostCreated }: { onPostCreated: () => voi
 
   const onSubmit = async (data: FormData) => {
     if (!data.content?.trim()) {
-      showToast('Post content cannot be empty', 'warning');
+      toast.warning('Post content cannot be empty');
       return;
     }
 
     setLoading(true);
     try {
-      await api.post('/posts', { content: data.content.trim(), title: data.title?.trim() || null });
+      const res = await api.post('/posts', { content: data.content.trim(), title: data.title?.trim() || null });
       reset();
       setExpanded(false);
-      onPostCreated();
-      showToast('Post created successfully! 🎉', 'success');
+      onPostCreated(res.data);
+      toast.success(res.data?.message || 'Post created successfully!');
     } catch (error: any) {
-      showToast(error.response?.data?.message || 'Failed to create post', 'error');
+      toast.error(error.response?.data?.message || 'Failed to create post');
     } finally {
       setLoading(false);
     }

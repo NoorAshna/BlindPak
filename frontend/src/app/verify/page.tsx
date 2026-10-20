@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function VerifyPage() {
     const { register, handleSubmit } = useForm();
@@ -29,9 +30,12 @@ export default function VerifyPage() {
                 email,
                 otp: data.otp
             });
+            toast.success(res.data?.message || 'Account verified successfully!');
             login(res.data.token, res.data);
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Invalid OTP');
+            const msg = err.response?.data?.message || 'Invalid OTP';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

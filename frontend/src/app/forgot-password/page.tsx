@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import { emailValidation, passwordValidation } from '@/lib/validation';
 
@@ -19,11 +20,14 @@ export default function ForgotPasswordPage() {
         setLoading(true);
         setError('');
         try {
-            await api.post('/auth/forgot-password', { email: data.email });
+            const res = await api.post('/auth/forgot-password', { email: data.email });
             setEmail(data.email);
             setStep(2);
+            toast.success(res.data?.message || 'OTP sent successfully!');
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to send OTP');
+            const msg = err.response?.data?.message || 'Failed to send OTP';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
@@ -34,19 +38,24 @@ export default function ForgotPasswordPage() {
         setError('');
         try {
             if (data.newPassword !== data.confirmPassword) {
-                setError("Passwords do not match");
+                const msg = "Passwords do not match";
+                setError(msg);
+                toast.error(msg);
                 return;
             }
 
-            await api.post('/auth/reset-password', {
+            const res = await api.post('/auth/reset-password', {
                 email,
                 otp: data.otp,
                 newPassword: data.newPassword
             });
 
+            toast.success(res.data?.message || 'Password updated successfully');
             router.push('/login');
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Failed to reset password');
+            const msg = err.response?.data?.message || 'Failed to reset password';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }

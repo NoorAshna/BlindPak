@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { toast } from "sonner";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 
 interface Post {
@@ -164,7 +165,7 @@ export default function PostManagementPage() {
         if (!editedCommentText.trim()) return;
 
         try {
-            await api.put(`/admin/comments/${commentId}`, { text: editedCommentText });
+            const res = await api.put(`/admin/comments/${commentId}`, { text: editedCommentText });
             setCommentsByPost((currentComments) => {
                 const updatedComments = { ...currentComments };
                 Object.keys(updatedComments).forEach((postId) => {
@@ -178,8 +179,9 @@ export default function PostManagementPage() {
             });
             setEditingCommentId(null);
             setEditedCommentText("");
+            toast.success(res.data?.message || "Comment updated successfully");
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to update comment");
+            toast.error(error.response?.data?.message || "Failed to update comment");
         }
     };
 
@@ -187,13 +189,14 @@ export default function PostManagementPage() {
         if (!confirm("Are you sure you want to delete this comment?")) return;
 
         try {
-            await api.delete(`/admin/comments/${commentId}`);
+            const res = await api.delete(`/admin/comments/${commentId}`);
             setCommentsByPost((currentComments) => ({
                 ...currentComments,
                 [postId]: (currentComments[postId] || []).filter((comment) => comment._id !== commentId),
             }));
+            toast.success(res.data?.message || "Comment deleted successfully");
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to delete comment");
+            toast.error(error.response?.data?.message || "Failed to delete comment");
         }
     };
 
@@ -203,11 +206,11 @@ export default function PostManagementPage() {
         }
 
         try {
-            await api.delete(`/admin/posts/${postId}`);
-            alert("Post deleted successfully");
+            const res = await api.delete(`/admin/posts/${postId}`);
+            toast.success(res.data?.message || "Post deleted successfully");
             fetchPosts();
         } catch (error: any) {
-            alert(error.response?.data?.message || "Failed to delete post");
+            toast.error(error.response?.data?.message || "Failed to delete post");
         }
     };
 

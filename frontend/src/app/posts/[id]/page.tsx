@@ -35,14 +35,23 @@ export default function PostDetailsPage() {
     const [editTitle, setEditTitle] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    const [loadingPost, setLoadingPost] = useState(true);
+    const [postError, setPostError] = useState<string | null>(null);
+
     const fetchPost = async () => {
+        setLoadingPost(true);
+        setPostError(null);
         try {
             const res = await api.get(`/posts/${id}`);
             setPost(res.data);
             setEditContent(res.data.content);
             setEditTitle(res.data.title || '');
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            const msg = error.response?.data?.message || 'Post not found or has been deleted.';
+            setPostError(msg);
+            showToast(msg, 'error');
+        } finally {
+            setLoadingPost(false);
         }
     };
 
@@ -132,9 +141,9 @@ export default function PostDetailsPage() {
         if (!editContent.trim()) return;
         setIsSaving(true);
         try {
-            await api.put(`/posts/${id}`, { content: editContent, title: editTitle || null });
+            const res = await api.put(`/posts/${id}`, { content: editContent, title: editTitle || null });
             setIsEditing(false);
-            showToast('Post updated successfully', 'success');
+            showToast(res.data?.message || 'Post updated successfully', 'success');
             fetchPost();
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to update post', 'error');
@@ -147,8 +156,8 @@ export default function PostDetailsPage() {
         if (!window.confirm('Are you sure you want to delete this post? This cannot be undone.')) return;
         setIsSaving(true);
         try {
-            await api.delete(`/posts/${id}`);
-            showToast('Post deleted', 'info');
+            const res = await api.delete(`/posts/${id}`);
+            showToast(res.data?.message || 'Post deleted', 'info');
             router.push('/');
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to delete post', 'error');
@@ -164,10 +173,10 @@ export default function PostDetailsPage() {
         }
         setLoading(true);
         try {
-            await api.post(`/posts/${id}/comment`, { text: commentText });
+            const res = await api.post(`/posts/${id}/comment`, { text: commentText });
             setCommentText('');
             fetchComments();
-            showToast('Comment posted!', 'success');
+            showToast(res.data?.message || 'Comment posted successfully!', 'success');
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to post comment', 'error');
         } finally {
@@ -175,11 +184,37 @@ export default function PostDetailsPage() {
         }
     };
 
-    if (!post) return (
-        <div className="flex min-h-screen items-center justify-center text-gray-400">
-            Loading post…
-        </div>
-    );
+    if (loadingPost) {
+        return (
+            <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-gray-500">
+                <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                <p className="text-sm">Loading post…</p>
+            </div>
+        );
+    }
+
+    if (postError || !post) {
+        return (
+            <div className="flex min-h-screen flex-col items-center justify-center p-4">
+                <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500">
+                        <X size={28} />
+                    </div>
+                    <h2 className="mb-2 text-xl font-bold text-gray-900">Post Not Found</h2>
+                    <p className="mb-6 text-sm text-gray-600">
+                        {postError || "The post you are trying to view does not exist or may have been deleted by its author."}
+                    </p>
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 shadow-sm"
+                    >
+                        <ArrowLeft size={16} />
+                        Back to Community Feed
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8">
