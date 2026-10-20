@@ -1,4 +1,4 @@
-const { User, Otp } = require('../models');
+﻿const { User, Otp } = require('../models');
 const { sendOTP, generateOTP } = require('../utils/otp');
 const hashEmail = require('../utils/hash');
 const jwt = require('jsonwebtoken');
@@ -6,6 +6,8 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const universityDomains = require('../utils/universityDomains');
 const { isValidEmail, getPasswordValidationError } = require('../utils/validation');
+const { parseDeviceInfo } = require('../utils/deviceInfo');
+const { audit } = require('../utils/audit');
 
 
 const adjectives = [
@@ -103,7 +105,8 @@ const initiateRegistration = async (req, res) => {
       hashedEmail,
       password: hashedPassword,
       role: userRole,
-      university: userRole === 'student' ? universityDomains[domain] : 'General'
+      university: userRole === 'student' ? universityDomains[domain] : 'General',
+      deviceInfo: parseDeviceInfo(req),
     };
 
     // Save OTP and Temp Data
@@ -134,6 +137,18 @@ const verifyRegistration = async (req, res) => {
 
     // Create User
     const user = await User.create(validOtp.tempUserData);
+
+    // Audit: registration success
+    const regDeviceInfo = validOtp.tempUserData?.deviceInfo || {};
+    audit({
+      userId: user._id,
+      resource: 'AUTH',
+      action: 'REGISTER',
+      status: 'SUCCESS',
+      targetId: user._id,
+      metadata: { role: user.role, university: user.university },
+      deviceInfo: regDeviceInfo,
+    });
 
     // Delete OTP
     await Otp.destroy({ where: { email: email.trim().toLowerCase() } });
@@ -167,6 +182,15 @@ const loginUser = async (req, res) => {
     const user = await User.findOne({ where: { hashedEmail } });
 
     if (user && (await bcrypt.compare(password, user.password))) {
+      // Audit: login success
+      const loginDeviceInfo = parseDeviceInfo(req);
+      audit({
+        userId: user._id,
+        resource: 'AUTH',
+        action: 'LOGIN',
+        status: 'SUCCESS',
+        deviceInfo: loginDeviceInfo,
+      });
       res.json({
         _id: user._id,
         name: user.name,
@@ -175,6 +199,15 @@ const loginUser = async (req, res) => {
         token: generateToken(user._id)
       });
     } else {
+      // Audit: login failure
+      audit({
+        userId: null,
+        resource: 'AUTH',
+        action: 'LOGIN_FAILED',
+        status: 'FAILURE',
+        metadata: { reason: 'Invalid email or password' },
+        deviceInfo: parseDeviceInfo(req),
+      });
       res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
@@ -214,6 +247,15 @@ const forgotPassword = async (req, res) => {
     console.log(`TESTING RESET OTP for ${normalizedEmail}: ${otp}`);
     await sendOTP(normalizedEmail, otp);
 
+    // Audit: password reset request
+    audit({
+      userId: user._id,
+      resource: 'AUTH',
+      action: 'PASSWORD_RESET_REQUEST',
+      status: 'SUCCESS',
+      deviceInfo: parseDeviceInfo(req),
+    });
+
     res.status(200).json({ message: 'OTP sent successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -251,6 +293,15 @@ const resetPassword = async (req, res) => {
     );
 
     await Otp.destroy({ where: { email } });
+
+    // Audit: password reset complete
+    audit({
+      userId: validOtp.tempUserData.userId,
+      resource: 'AUTH',
+      action: 'PASSWORD_RESET',
+      status: 'SUCCESS',
+      deviceInfo: parseDeviceInfo(req),
+    });
 
     res.status(200).json({ message: 'Password updated successfully' });
   } catch (error) {

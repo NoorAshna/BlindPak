@@ -1,7 +1,9 @@
-const { User, Post, Comment, Follow, Notification } = require('../models');
+﻿const { User, Post, Comment, Follow, Notification } = require('../models');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const { sendNotificationToUser } = require('../utils/socket');
+const { parseDeviceInfo } = require('../utils/deviceInfo');
+const { audit } = require('../utils/audit');
 
 // ────────────────────────────────────────────────────────────────────────────────
 // @desc    Get public profile of a user by ID
@@ -149,6 +151,8 @@ const toggleFollow = async (req, res) => {
     if (existing) {
       // Unfollow
       await existing.destroy();
+      // Audit: unfollow
+      audit({ userId: req.user._id, resource: 'USER', action: 'UNFOLLOW', targetId: req.params.id, deviceInfo: parseDeviceInfo(req) });
       return res.json({ following: false, message: `Unfollowed ${target.name}` });
     }
 
@@ -181,6 +185,8 @@ const toggleFollow = async (req, res) => {
       });
     } catch (_) { /* non-critical */ }
 
+    // Audit: follow
+    audit({ userId: req.user._id, resource: 'USER', action: 'FOLLOW', targetId: req.params.id, deviceInfo: parseDeviceInfo(req) });
     return res.json({ following: true, message: `Now following ${target.name}` });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -242,6 +248,8 @@ const updateProfile = async (req, res) => {
     }
 
     await user.save();
+    // Audit: profile updated
+    audit({ userId: req.user._id, resource: 'USER', action: 'UPDATE_PROFILE', deviceInfo: parseDeviceInfo(req) });
     res.json({
       _id: user._id,
       name: user.name,

@@ -4,6 +4,7 @@ const Comment = require('./Comment');
 const Otp = require('./Otp');
 const Follow = require('./Follow');
 const Notification = require('./Notification');
+const AuditLog = require('./AuditLog');
 
 // ── Post associations ─────────────────────────────────────────────────────────
 User.hasMany(Post, { foreignKey: 'userId', onDelete: 'CASCADE' });
@@ -26,6 +27,10 @@ User.hasMany(Notification, { foreignKey: 'recipientId', as: 'notifications', onD
 Notification.belongsTo(User, { foreignKey: 'recipientId', as: 'recipient' });
 Notification.belongsTo(User, { foreignKey: 'actorId', as: 'actor' });
 
+// ── AuditLog associations ─────────────────────────────────────────────────────
+User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs', onDelete: 'SET NULL' });
+AuditLog.belongsTo(User, { foreignKey: 'userId', as: 'actor' });
+
 module.exports = {
   User,
   Post,
@@ -33,4 +38,5 @@ module.exports = {
   Otp,
   Follow,
   Notification,
+  AuditLog,
 };

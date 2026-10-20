@@ -1,4 +1,6 @@
-const { Post, Comment, User, Notification } = require('../models');
+﻿const { Post, Comment, User, Notification } = require('../models');
+const { parseDeviceInfo } = require('../utils/deviceInfo');
+const { audit } = require('../utils/audit');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const {
@@ -92,6 +94,8 @@ const createPost = async (req, res) => {
     postObj.commentCount = 0;
     postObj.userId = postObj.user;
 
+    // Audit: post created
+    audit({ userId: req.user._id, resource: 'POST', action: 'CREATE_POST', targetId: post._id, deviceInfo: parseDeviceInfo(req) });
     res.status(201).json({ ...postObj, message: 'Post created successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -223,6 +227,9 @@ const likePost = async (req, res) => {
     // Broadcast updated likes in real-time to everyone viewing this post's room
     emitPostLikesUpdate(post._id, post.likes);
 
+    // Audit: like or unlike
+    const wasLiked = likes.includes(req.user._id);
+    audit({ userId: req.user._id, resource: 'POST', action: wasLiked ? 'LIKE_POST' : 'UNLIKE_POST', targetId: post._id, deviceInfo: parseDeviceInfo(req) });
     res.json(post.likes);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -306,6 +313,8 @@ const commentPost = async (req, res) => {
       emitPostCommentAdded(post._id, commentObj, commentCount);
     } catch (_) { /* non-critical */ }
 
+    // Audit: comment created
+    audit({ userId: req.user._id, resource: 'COMMENT', action: 'CREATE_COMMENT', targetId: comment._id, metadata: { postId: req.params.id }, deviceInfo: parseDeviceInfo(req) });
     res.status(201).json(commentObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -417,6 +426,8 @@ const updatePost = async (req, res) => {
     post.content = content ?? post.content;
     await post.save();
 
+    // Audit: post updated
+    audit({ userId: req.user._id, resource: 'POST', action: 'UPDATE_POST', targetId: post._id, deviceInfo: parseDeviceInfo(req) });
     res.json({ ...post.toJSON(), message: 'Post updated successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -443,6 +454,8 @@ const deleteOwnPost = async (req, res) => {
     await Comment.destroy({ where: { postId: post._id } });
     await post.destroy();
 
+    // Audit: post deleted
+    audit({ userId: req.user._id, resource: 'POST', action: 'DELETE_POST', targetId: post._id, deviceInfo: parseDeviceInfo(req) });
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

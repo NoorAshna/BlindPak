@@ -1,4 +1,6 @@
-const { Post, Comment, User } = require('../models');
+﻿const { Post, Comment, User } = require('../models');
+const { parseDeviceInfo } = require('../utils/deviceInfo');
+const { audit } = require('../utils/audit');
 const bcrypt = require('bcryptjs');
 
 // @desc    Delete a post (Admin only)
@@ -18,6 +20,8 @@ const deletePost = async (req, res) => {
     // Delete the post
     await post.destroy();
 
+    // Audit: admin deleted post
+    audit({ userId: req.user._id, resource: 'ADMIN', action: 'ADMIN_DELETE_POST', targetId: req.params.id, deviceInfo: parseDeviceInfo(req) });
     res.json({ message: 'Post and associated comments deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -44,6 +48,8 @@ const updateComment = async (req, res) => {
     comment.text = text.trim();
     await comment.save();
 
+    // Audit: admin updated comment
+    audit({ userId: req.user._id, resource: 'ADMIN', action: 'ADMIN_UPDATE_COMMENT', targetId: req.params.id, deviceInfo: parseDeviceInfo(req) });
     res.json(comment);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -63,6 +69,8 @@ const deleteComment = async (req, res) => {
 
     await comment.destroy();
 
+    // Audit: admin deleted comment
+    audit({ userId: req.user._id, resource: 'ADMIN', action: 'ADMIN_DELETE_COMMENT', targetId: req.params.id, deviceInfo: parseDeviceInfo(req) });
     res.json({ message: 'Comment deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -119,6 +127,8 @@ const updateUserPassword = async (req, res) => {
 
     await user.save();
 
+    // Audit: admin updated user password
+    audit({ userId: req.user._id, resource: 'ADMIN', action: 'ADMIN_UPDATE_USER_PASSWORD', targetId: req.params.id, deviceInfo: parseDeviceInfo(req) });
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -155,6 +165,8 @@ const deleteUser = async (req, res) => {
     // Delete the user
     await user.destroy();
 
+    // Audit: admin deleted user
+    audit({ userId: req.user._id, resource: 'ADMIN', action: 'ADMIN_DELETE_USER', targetId: req.params.id, metadata: { cascadeDelete }, deviceInfo: parseDeviceInfo(req) });
     res.json({ 
       message: 'User deleted successfully',
       cascadeDelete 
@@ -209,6 +221,8 @@ const updateUserRole = async (req, res) => {
     user.role = role;
     await user.save();
 
+    // Audit: admin updated user role
+    audit({ userId: req.user._id, resource: 'ADMIN', action: 'ADMIN_UPDATE_USER_ROLE', targetId: req.params.id, metadata: { newRole: role }, deviceInfo: parseDeviceInfo(req) });
     res.json({ message: 'User role updated successfully', role: user.role });
   } catch (error) {
     res.status(500).json({ message: error.message });
