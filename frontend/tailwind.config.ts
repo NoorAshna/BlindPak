@@ -8,6 +8,20 @@ const config: Config = {
     ],
     theme: {
         extend: {
+            fontFamily: {
+                sans: [
+                    "var(--font-sans)",
+                    "-apple-system",
+                    "BlinkMacSystemFont",
+                    '"Segoe UI"',
+                    "Roboto",
+                    "Helvetica",
+                    "Arial",
+                    "sans-serif",
+                    '"Apple Color Emoji"',
+                    '"Segoe UI Emoji"',
+                ],
+            },
             backgroundImage: {
                 "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
                 "gradient-conic":
