@@ -10,16 +10,22 @@ const config: Config = {
         extend: {
             fontFamily: {
                 sans: [
+                    '"Pretendard Variable"',
+                    "Pretendard",
                     "var(--font-sans)",
                     "-apple-system",
                     "BlinkMacSystemFont",
-                    '"Segoe UI"',
+                    "system-ui",
                     "Roboto",
-                    "Helvetica",
-                    "Arial",
-                    "sans-serif",
+                    '"Helvetica Neue"',
+                    '"Segoe UI"',
+                    '"Apple SD Gothic Neo"',
+                    '"Noto Sans KR"',
+                    '"Malgun Gothic"',
                     '"Apple Color Emoji"',
                     '"Segoe UI Emoji"',
+                    '"Segoe UI Symbol"',
+                    "sans-serif",
                 ],
             },
             backgroundImage: {

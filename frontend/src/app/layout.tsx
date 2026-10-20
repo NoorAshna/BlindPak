@@ -26,6 +26,14 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" className={plusJakartaSans.variable}>
+            <head>
+                <link
+                    rel="stylesheet"
+                    as="style"
+                    crossOrigin="anonymous"
+                    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+                />
+            </head>
             <body className="font-sans antialiased text-gray-900 bg-gray-50 selection:bg-indigo-500 selection:text-white">
                 <AuthProvider>
                     <ToastProvider>
