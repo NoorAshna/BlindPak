@@ -1,6 +1,11 @@
 const { Post, Comment, User, Notification } = require('../models');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
+const {
+  sendNotificationToUser,
+  emitPostLikesUpdate,
+  emitPostCommentAdded,
+} = require('../utils/socket');
 
 // ── Helper: Parse @mentions from text and create notifications ────────────────
 async function createMentionNotifications({ text, actorId, postId, commentId }) {
@@ -20,7 +25,7 @@ async function createMentionNotifications({ text, actorId, postId, commentId }) 
     attributes: ['_id', 'name'],
   });
 
-  const actor = await User.findByPk(actorId, { attributes: ['name'] });
+  const actor = await User.findByPk(actorId, { attributes: ['_id', 'name', 'university', 'role'] });
 
   const notifications = mentionedUsers.map((u) => ({
     _id: uuidv4(),
@@ -34,6 +39,16 @@ async function createMentionNotifications({ text, actorId, postId, commentId }) 
 
   if (notifications.length) {
     await Notification.bulkCreate(notifications, { ignoreDuplicates: true });
+    
+    // Broadcast via socket to each mentioned user's room
+    for (const notif of notifications) {
+      sendNotificationToUser(notif.recipientId, {
+        ...notif,
+        actor: actor ? actor.toJSON() : null,
+        read: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
 }
 
@@ -169,8 +184,8 @@ const likePost = async (req, res) => {
       // Notify post owner (don't block)
       if (post.userId !== req.user._id) {
         try {
-          const actor = await User.findByPk(req.user._id, { attributes: ['name'] });
-          await Notification.create({
+          const actor = await User.findByPk(req.user._id, { attributes: ['_id', 'name', 'university', 'role'] });
+          const newNotif = await Notification.create({
             _id: uuidv4(),
             recipientId: post.userId,
             actorId: req.user._id,
@@ -179,12 +194,20 @@ const likePost = async (req, res) => {
             commentId: null,
             message: `${actor?.name || 'Someone'} liked your post`,
           });
+          sendNotificationToUser(post.userId, {
+            ...newNotif.toJSON(),
+            actor: actor ? actor.toJSON() : null,
+          });
         } catch (_) { /* non-critical */ }
       }
     }
 
     post.likes = likes;
     await post.save();
+
+    // Broadcast updated likes in real-time to everyone viewing this post's room
+    emitPostLikesUpdate(post._id, post.likes);
+
     res.json(post.likes);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -231,7 +254,7 @@ const commentPost = async (req, res) => {
     // Notify post owner about new comment (if not self)
     if (post.userId !== req.user._id) {
       try {
-        await Notification.create({
+        const newNotif = await Notification.create({
           _id: uuidv4(),
           recipientId: post.userId,
           actorId: req.user._id,
@@ -239,6 +262,15 @@ const commentPost = async (req, res) => {
           postId: post._id,
           commentId: comment._id,
           message: `${req.user.name} commented on your post`,
+        });
+        sendNotificationToUser(post.userId, {
+          ...newNotif.toJSON(),
+          actor: {
+            _id: req.user._id,
+            name: req.user.name,
+            university: req.user.university,
+            role: req.user.role,
+          },
         });
       } catch (_) { /* non-critical */ }
     }
@@ -251,6 +283,12 @@ const commentPost = async (req, res) => {
         postId: post._id,
         commentId: comment._id,
       });
+    } catch (_) { /* non-critical */ }
+
+    // Broadcast new comment and current total count to post room
+    try {
+      const commentCount = await Comment.count({ where: { postId: post._id } });
+      emitPostCommentAdded(post._id, commentObj, commentCount);
     } catch (_) { /* non-critical */ }
 
     res.status(201).json(commentObj);

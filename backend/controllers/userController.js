@@ -1,6 +1,7 @@
 const { User, Post, Comment, Follow, Notification } = require('../models');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
+const { sendNotificationToUser } = require('../utils/socket');
 
 // ────────────────────────────────────────────────────────────────────────────────
 // @desc    Get public profile of a user by ID
@@ -160,7 +161,7 @@ const toggleFollow = async (req, res) => {
 
     // Create notification for the target user (don't block on failure)
     try {
-      await Notification.create({
+      const newNotif = await Notification.create({
         _id: uuidv4(),
         recipientId: req.params.id,
         actorId: req.user._id,
@@ -168,6 +169,15 @@ const toggleFollow = async (req, res) => {
         postId: null,
         commentId: null,
         message: `${req.user.name} started following you`,
+      });
+      sendNotificationToUser(req.params.id, {
+        ...newNotif.toJSON(),
+        actor: {
+          _id: req.user._id,
+          name: req.user.name,
+          university: req.user.university,
+          role: req.user.role,
+        },
       });
     } catch (_) { /* non-critical */ }
 

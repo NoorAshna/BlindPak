@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { useSocket, PostLikesPayload, PostCommentPayload } from '@/context/SocketContext';
 import { formatDistanceToNow } from 'date-fns';
 import { useParams, useRouter } from 'next/navigation';
 import { Pencil, Trash2, Check, X, ArrowLeft } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function PostDetailsPage() {
     const [loadingMoreComments, setLoadingMoreComments] = useState(false);
     const { user } = useAuth();
     const { showToast } = useToast();
+    const { socket, joinPostRooms, leavePostRooms } = useSocket();
     const [commentText, setCommentText] = useState('');
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -76,10 +78,49 @@ export default function PostDetailsPage() {
 
     useEffect(() => {
         if (id) {
+            const postId = Array.isArray(id) ? id[0] : id;
             fetchPost();
             fetchComments();
+
+            // Join the specific post room for live likes and comments
+            joinPostRooms(postId);
+
+            return () => {
+                leavePostRooms(postId);
+            };
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
+
+    // Listen to real-time events for this post
+    useEffect(() => {
+        if (!socket || !id) return;
+        const currentPostId = Array.isArray(id) ? id[0] : id;
+
+        const handleLikesUpdated = ({ postId, likes }: PostLikesPayload) => {
+            if (postId === currentPostId) {
+                setPost((prev: any) => (prev ? { ...prev, likes } : prev));
+            }
+        };
+
+        const handleCommentAdded = ({ postId, comment }: PostCommentPayload) => {
+            if (postId === currentPostId && comment) {
+                setComments((prev) => {
+                    // Avoid duplicating comment if already added locally
+                    if (prev.some((c: any) => c._id === comment._id)) return prev;
+                    return [...prev, comment];
+                });
+            }
+        };
+
+        socket.on('post_likes_updated', handleLikesUpdated);
+        socket.on('post_comment_added', handleCommentAdded);
+
+        return () => {
+            socket.off('post_likes_updated', handleLikesUpdated);
+            socket.off('post_comment_added', handleCommentAdded);
+        };
+    }, [socket, id]);
 
     const authorId = post?.user?._id || post?.userId?._id || post?.userId;
     const isOwner = Boolean(user && authorId && user._id === (typeof authorId === 'object' ? authorId._id : authorId));

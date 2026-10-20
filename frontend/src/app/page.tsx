@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import api from '@/lib/api';
 import PostCard from '@/components/PostCard';
 import CreatePost from '@/components/CreatePost';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { useSocket, PostLikesPayload, PostCommentPayload } from '@/context/SocketContext';
 import type { Post } from '@/components/PostCard';
 
 interface PostsResponse {
@@ -22,6 +23,12 @@ export default function Home() {
     const [loadingMore, setLoadingMore] = useState(false);
     const { user, loading: authLoading } = useAuth();
     const { showToast } = useToast();
+    const { socket, joinPostRooms, leavePostRooms } = useSocket();
+
+    // Ref to track sentinel element for infinite scroll
+    const observerTarget = useRef<HTMLDivElement>(null);
+    // Track joined room IDs to manage room membership efficiently
+    const joinedPostIdsRef = useRef<Set<string>>(new Set());
 
     const fetchPosts = async () => {
         setLoadingPosts(true);
@@ -30,6 +37,17 @@ export default function Home() {
             setPosts(res.data.posts);
             setNextCursor(res.data.nextCursor);
             setHasMore(res.data.hasMore);
+
+            // Manage socket rooms for initial posts
+            const newIds = res.data.posts.map((p) => p._id);
+            // Leave previous rooms if any
+            if (joinedPostIdsRef.current.size > 0) {
+                leavePostRooms(Array.from(joinedPostIdsRef.current));
+                joinedPostIdsRef.current.clear();
+            }
+            // Join new initial posts rooms
+            newIds.forEach((id) => joinedPostIdsRef.current.add(id));
+            joinPostRooms(newIds);
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to load posts', 'error');
         } finally {
@@ -37,44 +55,115 @@ export default function Home() {
         }
     };
 
-    const loadMorePosts = async () => {
-        if (!nextCursor || loadingMore) return;
+    const loadMorePosts = useCallback(async () => {
+        if (!nextCursor || loadingMore || !hasMore) return;
 
         setLoadingMore(true);
         try {
             const res = await api.get<PostsResponse>('/posts', {
                 params: { limit: 10, cursor: nextCursor }
             });
-            setPosts((currentPosts) => [...currentPosts, ...res.data.posts]);
+
+            const fetchedPosts = res.data.posts;
+            setPosts((currentPosts) => {
+                // Deduplicate in case of race condition
+                const existingIds = new Set(currentPosts.map((p) => p._id));
+                const uniqueNewPosts = fetchedPosts.filter((p) => !existingIds.has(p._id));
+                return [...currentPosts, ...uniqueNewPosts];
+            });
+
             setNextCursor(res.data.nextCursor);
             setHasMore(res.data.hasMore);
+
+            // Join socket rooms for newly appended posts
+            const newIds = fetchedPosts.map((p) => p._id).filter((id) => !joinedPostIdsRef.current.has(id));
+            if (newIds.length > 0) {
+                newIds.forEach((id) => joinedPostIdsRef.current.add(id));
+                joinPostRooms(newIds);
+            }
         } catch (error: any) {
             showToast('Failed to load more posts', 'error');
         } finally {
             setLoadingMore(false);
         }
-    };
+    }, [nextCursor, loadingMore, hasMore, joinPostRooms, showToast]);
 
     useEffect(() => {
         fetchPosts();
+
+        return () => {
+            if (joinedPostIdsRef.current.size > 0) {
+                leavePostRooms(Array.from(joinedPostIdsRef.current));
+                joinedPostIdsRef.current.clear();
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // ── Listen for real-time post likes and comment updates in joined rooms ──
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleLikesUpdated = ({ postId, likes }: PostLikesPayload) => {
+            setPosts((prevPosts) =>
+                prevPosts.map((post) => {
+                    if (post._id === postId) {
+                        return { ...post, likes };
+                    }
+                    return post;
+                })
+            );
+        };
+
+        const handleCommentAdded = ({ postId, commentCount }: PostCommentPayload) => {
+            setPosts((prevPosts) =>
+                prevPosts.map((post) => {
+                    if (post._id === postId) {
+                        return {
+                            ...post,
+                            commentCount: typeof commentCount === 'number' ? commentCount : (post.commentCount || 0) + 1,
+                        };
+                    }
+                    return post;
+                })
+            );
+        };
+
+        socket.on('post_likes_updated', handleLikesUpdated);
+        socket.on('post_comment_added', handleCommentAdded);
+
+        return () => {
+            socket.off('post_likes_updated', handleLikesUpdated);
+            socket.off('post_comment_added', handleCommentAdded);
+        };
+    }, [socket]);
+
+    // ── Infinite scroll via IntersectionObserver on bottom sentinel ─────────
+    useEffect(() => {
+        const target = observerTarget.current;
+        if (!target) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingPosts) {
+                    loadMorePosts();
+                }
+            },
+            {
+                root: null,
+                rootMargin: '250px', // trigger 250px before reaching the exact bottom
+                threshold: 0.1,
+            }
+        );
+
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [loadMorePosts, hasMore, loadingMore, loadingPosts]);
 
     const handleLike = async (id: string) => {
         try {
             await api.post(`/posts/${id}/like`);
-            // Optimistic UI already handled in PostCard, just refresh counts
-            setPosts((prev) =>
-                prev.map((p) => {
-                    if (p._id !== id) return p;
-                    const alreadyLiked = user && p.likes?.includes(user._id);
-                    return {
-                        ...p,
-                        likes: alreadyLiked
-                            ? p.likes.filter((uid) => uid !== user?._id)
-                            : [...(p.likes || []), user?._id || ''],
-                    };
-                })
-            );
+            // Optimistic UI is handled in PostCard; socket event also ensures cross-tab sync
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to like post', 'error');
         }
@@ -131,14 +220,20 @@ export default function Home() {
                             ))
                         )}
 
-                        {hasMore && (
-                            <button
-                                onClick={loadMorePosts}
-                                disabled={loadingMore}
-                                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 transition"
-                            >
-                                {loadingMore ? 'Loading…' : 'Load more posts'}
-                            </button>
+                        {/* Scroll sentinel for infinite loading */}
+                        <div ref={observerTarget} className="h-4 w-full" />
+
+                        {loadingMore && (
+                            <div className="flex items-center justify-center py-4 text-sm text-gray-500">
+                                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent mr-2" />
+                                Loading more posts…
+                            </div>
+                        )}
+
+                        {!hasMore && posts.length > 0 && (
+                            <p className="py-6 text-center text-xs text-gray-400">
+                                You&apos;ve reached the end of the feed ✨
+                            </p>
                         )}
                     </div>
                 )}

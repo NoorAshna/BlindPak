@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useSocket } from "@/context/SocketContext";
 import { useEffect, useRef, useState } from "react";
 import { Bell, User, LogOut, Shield, Menu, X, ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -27,6 +28,7 @@ const typeIconMap: Record<string, string> = {
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { latestNotification } = useSocket();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -47,10 +49,19 @@ export default function Navbar() {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30_000); // poll every 30s
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Real-time notification received via Socket.IO
+  useEffect(() => {
+    if (!latestNotification) return;
+    setNotifications((prev) => {
+      // Avoid duplicate entry if already present
+      if (prev.some((n) => n._id === latestNotification._id)) return prev;
+      return [latestNotification, ...prev];
+    });
+    setUnreadCount((count) => count + 1);
+  }, [latestNotification]);
 
   // Close notif dropdown on outside click
   useEffect(() => {

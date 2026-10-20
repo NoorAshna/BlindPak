@@ -2,12 +2,18 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
+const { initSocket } = require('./utils/socket');
 
 const app = express();
+const server = http.createServer(app);
+
+// Initialize Socket.IO with server
+initSocket(server);
 
 // Middleware
 app.use(express.json());
@@ -35,6 +41,6 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

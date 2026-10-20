@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageSquare, Pencil, Trash2, X, Check, Share2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import api from '@/lib/api';
@@ -40,6 +40,12 @@ export default function PostCard({ post, onLike, onPostUpdated, onPostDeleted }:
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [liked, setLiked] = useState(user ? post.likes?.includes(user._id) : false);
     const [likeCount, setLikeCount] = useState(post.likes?.length || 0);
+
+    // Sync state when post prop updates from real-time socket events
+    useEffect(() => {
+        setLiked(user ? post.likes?.includes(user._id) : false);
+        setLikeCount(post.likes?.length || 0);
+    }, [post.likes, user]);
 
     const authorId = post.user?._id || (typeof post.userId === 'object' ? post.userId?._id : post.userId);
     const isOwner = Boolean(user && authorId && user._id === authorId);
